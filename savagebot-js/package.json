@@ -1,0 +1,21 @@
+{
+  "name": "savagebot-js",
+  "version": "1.0.0",
+  "description": "Discord bot for Savage Worlds and tabletop RPG mechanics",
+  "main": "index.js",
+  "type": "module",
+  "scripts": {
+    "start": "node index.js",
+    "dev": "nodemon index.js"
+  },
+  "keywords": ["discord", "bot", "rpg", "savage-worlds", "dice", "tabletop"],
+  "author": "",
+  "license": "MIT",
+  "dependencies": {
+    "discord.js": "^14.14.1",
+    "dotenv": "^16.3.1"
+  },
+  "devDependencies": {
+    "nodemon": "^3.0.2"
+  }
+}

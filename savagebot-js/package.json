@@ -7,7 +7,8 @@
   "scripts": {
     "start": "node index.js",
     "dev": "nodemon index.js",
-    "generate-parser": "antlr4 -Dlanguage=JavaScript -visitor R2.g4 -o ./parser"
+    "generate-parser": "antlr4 -Dlanguage=JavaScript -visitor R2.g4 -o ./parser",
+    "test": "node tests/test-parser.js"
   },
   "keywords": ["discord", "bot", "rpg", "savage-worlds", "dice", "tabletop"],
   "author": "",

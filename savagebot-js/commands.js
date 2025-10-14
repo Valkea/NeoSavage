@@ -1,5 +1,5 @@
 import { MessageFlags } from 'discord.js';
-import { parseDiceExpression, rollWithWildDie, rollAndKeep, calculateRaises } from './diceUtils.js';
+import { parseDiceExpression, rollWithWildDie, calculateRaises } from './diceUtils.js';
 import { evaluateExpression } from './r2Evaluator.js';
 import { InitiativeTracker } from './initiativeUtils.js';
 import { BennyManager, StateManager } from './bennyUtils.js';

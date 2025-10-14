@@ -199,14 +199,15 @@ const commands = [
 client.once(Events.ClientReady, async (readyClient) => {
   console.log(`Logged in as ${readyClient.user.tag}`);
 
-  try {
-    // Register slash commands for all guilds
-    for (const guild of client.guilds.cache.values()) {
+  // Register slash commands for all guilds
+  for (const guild of client.guilds.cache.values()) {
+    try {
       await guild.commands.set(commands.map(cmd => cmd.toJSON()));
-      console.log(`Registered commands for guild ${guild.name}`);
+      console.log(`✅ Registered commands for guild ${guild.name}`);
+    } catch (error) {
+      console.error(`❌ Error registering commands for guild ${guild.name}:`, error.message);
+      // Continue with other guilds even if one fails
     }
-  } catch (error) {
-    console.error('Error registering commands:', error);
   }
 });
 

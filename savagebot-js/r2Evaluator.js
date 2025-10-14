@@ -13,30 +13,8 @@ import antlr4 from 'antlr4';
 import R2Lexer from './parser/R2Lexer.js';
 import R2Parser from './parser/R2Parser.js';
 import R2Visitor from './parser/R2Visitor.js';
-
-/**
- * Dice rolling utilities
- */
-function rollDie(sides) {
-  return Math.floor(Math.random() * sides) + 1;
-}
-
-function rollAcingDie(sides, maxAces = 100) {
-  const rolls = [];
-  let total = 0;
-  let aces = 0;
-
-  while (aces < maxAces) {
-    const roll = rollDie(sides);
-    rolls.push(roll);
-    total += roll;
-
-    if (roll < sides) break;
-    aces++;
-  }
-
-  return { total, rolls };
-}
+// Import dice rolling utilities from shared module
+import { rollDie, rollAcingDie } from './diceUtils.js';
 
 /**
  * Roll result class

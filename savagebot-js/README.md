@@ -117,7 +117,7 @@ docker-compose down
 
 ## Advanced Dice Rolling (R2 Grammar)
 
-After generating the ANTLR4 parser, the bot supports the full R2 dice expression grammar:
+The bot includes full support for the R2 dice expression grammar with automatic parser generation during Docker build:
 
 ### Supported Syntax
 

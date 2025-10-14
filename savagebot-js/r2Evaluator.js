@@ -9,10 +9,10 @@
  */
 
 import antlr4 from 'antlr4';
-// Parser imports will be available after running npm run generate-parser
-// import R2Lexer from './parser/R2Lexer.js';
-// import R2Parser from './parser/R2Parser.js';
-// import R2Visitor from './parser/R2Visitor.js';
+// Parser imports - available after running npm run generate-parser
+import R2Lexer from './parser/R2Lexer.js';
+import R2Parser from './parser/R2Parser.js';
+import R2Visitor from './parser/R2Visitor.js';
 
 /**
  * Dice rolling utilities
@@ -58,15 +58,153 @@ export class RollResult {
 
 /**
  * R2 Expression Evaluator Visitor
- *
- * NOTE: This is a placeholder implementation that will work once the parser is generated.
- * After running `npm run generate-parser`, uncomment the imports and this visitor will work.
+ * Implements the visitor pattern for evaluating R2 dice expressions
  */
-export class R2EvaluatorVisitor /* extends R2Visitor */ {
+export class R2EvaluatorVisitor extends R2Visitor {
   constructor() {
-    // super();
+    super();
     this.variables = new Map(); // Variable storage
   }
+
+  // ========== Statement Visitors ==========
+
+  // Visit command element (top level)
+  visitCommandElement(ctx) {
+    const statements = ctx.statement();
+    const results = statements.map(stmt => this.visit(stmt));
+
+    // Return last result or combine multiple results
+    if (results.length === 1) {
+      return results[0];
+    }
+
+    return new RollResult(
+      results.reduce((sum, r) => sum + r.value, 0),
+      results.map((r, i) => `[${i+1}] ${r.toString()}`).join('\n'),
+      results
+    );
+  }
+
+  // Roll once statement: just evaluate the expression
+  visitRollOnceStmt(ctx) {
+    return this.visit(ctx.e);
+  }
+
+  // Roll multiple times statement: Nx[expression]
+  visitRollTimesStmt(ctx) {
+    const times = parseInt(ctx.n.getText());
+    const results = [];
+
+    for (let i = 0; i < times; i++) {
+      const result = this.visit(ctx.e);
+      results.push(result);
+    }
+
+    const total = results.reduce((sum, r) => sum + r.value, 0);
+
+    // Build detailed description showing individual rolls and their calculations
+    const descriptions = results.map((r, i) => {
+      // If we have a description (like from keep/drop operations), show it
+      if (r.description) {
+        return `  Roll ${i+1}: ${r.description} → ${r.value}`;
+      }
+      // Otherwise just show the value
+      return `  Roll ${i+1}: ${r.value}`;
+    }).join('\n');
+
+    return new RollResult(
+      total,
+      `${times}x rolls:\n${descriptions}\nTotal: ${total}`,
+      results
+    );
+  }
+
+  // Roll batch times: Nx[expression1; expression2; ...]
+  visitRollBatchTimesStmt(ctx) {
+    const times = parseInt(ctx.n.getText());
+    const batchElements = ctx.batchElement();
+    const allResults = [];
+
+    for (let i = 0; i < times; i++) {
+      const batchResults = batchElements.map(elem => {
+        const comment = elem.comment ? elem.comment.text : null;
+        const result = this.visit(elem.e);
+        return { result, comment };
+      });
+      allResults.push(batchResults);
+    }
+
+    const total = allResults.flat().reduce((sum, {result}) => sum + result.value, 0);
+    return new RollResult(total, `Batch ${times} times`, allResults);
+  }
+
+  // Savage Worlds extras roll statement: Ne6, 4e8, etc.
+  visitRollSavageWorldsExtraStmt(ctx) {
+    const count = parseInt(ctx.n.getText());
+    const traitDie = parseInt(ctx.t1.getText());
+
+    const results = [];
+    for (let i = 0; i < count; i++) {
+      const roll = rollAcingDie(traitDie);
+      results.push(roll);
+    }
+
+    // Apply modifier if present
+    let total = results.reduce((sum, r) => sum + r.total, 0);
+    let desc = results.map(r => this.formatAcingRoll(r)).join(', ');
+
+    if (ctx.additiveModifier()) {
+      const modCtx = ctx.additiveModifier();
+      const modifier = this.visit(modCtx.em);
+      const op = modCtx.op.text;
+      total = op === '+' ? total + modifier.value : total - modifier.value;
+      desc += ` ${op} ${modifier.value}`;
+    }
+
+    // Handle target number if present
+    const tnCtx = ctx.targetNumberAndRaiseStep();
+    if (tnCtx) {
+      return this.applyTargetNumberMultiple(results, tnCtx, total);
+    }
+
+    return new RollResult(total, desc, results);
+  }
+
+  // IronSworn roll statement
+  visitIronSwornRollStmt(ctx) {
+    // IronSworn: roll 1d6 action die + modifier vs 2d10 challenge dice
+    const actionDie = rollDie(6);
+    const challenge1 = rollDie(10);
+    const challenge2 = rollDie(10);
+
+    let actionTotal = actionDie;
+    if (ctx.additiveModifier()) {
+      const modCtx = ctx.additiveModifier();
+      const modifier = this.visit(modCtx.em);
+      actionTotal = modCtx.op.text === '+' ? actionTotal + modifier.value : actionTotal - modifier.value;
+    }
+
+    const hits = [challenge1, challenge2].filter(c => actionTotal > c).length;
+    const match = challenge1 === challenge2;
+
+    let result;
+    if (hits === 2) result = match ? 'Strong Hit (Match!)' : 'Strong Hit';
+    else if (hits === 1) result = match ? 'Weak Hit (Match!)' : 'Weak Hit';
+    else result = match ? 'Miss (Match!)' : 'Miss';
+
+    return new RollResult(
+      actionTotal,
+      `Action: ${actionTotal} vs Challenge: ${challenge1}, ${challenge2} → ${result}`
+    );
+  }
+
+  // Flag statement
+  visitFlagStmt(ctx) {
+    const flag = ctx.flag.text;
+    return new RollResult(0, `Flag: ${flag}`);
+  }
+
+  // ========== Expression Visitors ==========
 
   // Visit expression node
   visitExpression(ctx) {
@@ -225,6 +363,12 @@ export class R2EvaluatorVisitor /* extends R2Visitor */ {
     const op = ctx.op.text;
 
     const result = op === '+' ? left.value + right.value : left.value - right.value;
+
+    // Preserve detailed description from left side (e.g., from keep operations)
+    if (left.description) {
+      return new RollResult(result, `${left.description} ${op} ${right.value}`, left.rolls);
+    }
+
     return new RollResult(result, `${left.value} ${op} ${right.value}`);
   }
 
@@ -300,20 +444,152 @@ export class R2EvaluatorVisitor /* extends R2Visitor */ {
   }
 
   applyGenericSuffix(rolls, total, suffix, sides) {
-    // Implement keep highest/lowest, advantage/disadvantage, success counting
-    // This is a simplified version - full implementation would handle all suffix types
+    // Handle RollAndKeepSuffix
+    if (suffix.constructor.name === 'RollAndKeepSuffixContext') {
+      const op = suffix.op.text.toLowerCase();
+      const keepCount = suffix.n ? parseInt(suffix.n.getText()) : 1;
+
+      if (op === 'k' || op === 'adv') {
+        // Keep highest
+        const sorted = [...rolls].sort((a, b) => b.total - a.total);
+        const kept = sorted.slice(0, keepCount);
+        const dropped = sorted.slice(keepCount);
+        const keptTotal = kept.reduce((sum, r) => sum + r.total, 0);
+
+        // Format: 💀[dropped] 🎲[kept] = total
+        const droppedStr = dropped.length > 0 ? `💀[${dropped.map(r => r.total).join(', ')}]` : '';
+        const keptStr = `🎲[${kept.map(r => r.total).join(', ')}]`;
+
+        return new RollResult(
+          keptTotal,
+          `${droppedStr}${keptStr}`,
+          { kept, dropped, all: rolls }
+        );
+      } else if (op === 'kl' || op === 'dis') {
+        // Keep lowest
+        const sorted = [...rolls].sort((a, b) => a.total - b.total);
+        const kept = sorted.slice(0, keepCount);
+        const dropped = sorted.slice(keepCount);
+        const keptTotal = kept.reduce((sum, r) => sum + r.total, 0);
+
+        // Format: 💀[dropped] 🎲[kept] = total
+        const droppedStr = dropped.length > 0 ? `💀[${dropped.map(r => r.total).join(', ')}]` : '';
+        const keptStr = `🎲[${kept.map(r => r.total).join(', ')}]`;
+
+        return new RollResult(
+          keptTotal,
+          `${droppedStr}${keptStr}`,
+          { kept, dropped, all: rolls }
+        );
+      }
+    }
+
+    // Handle SuccessOrFailSuffix1 and SuccessOrFailSuffix2
+    if (suffix.constructor.name.includes('SuccessOrFailSuffix')) {
+      const successTarget = parseInt(suffix.sn.getText());
+      const failTarget = suffix.fn ? parseInt(suffix.fn.getText()) : null;
+
+      const successes = rolls.filter(r => r.total >= successTarget).length;
+      const failures = failTarget ? rolls.filter(r => r.total <= failTarget).length : 0;
+
+      let desc = `Successes (≥${successTarget}): ${successes}`;
+      if (failTarget) {
+        desc += `, Failures (≤${failTarget}): ${failures}`;
+      }
+
+      return new RollResult(successes, desc, { rolls, successes, failures });
+    }
+
+    // Handle TargetNumberAndRaiseStepSuffix
+    if (suffix.constructor.name === 'TargetNumberAndRaiseStepSuffixContext') {
+      const tnCtx = suffix.targetNumberAndRaiseStep();
+      return this.applyTargetNumberSingle(total, tnCtx);
+    }
+
+    // Default: just return total
     return new RollResult(total, this.formatRolls(rolls), rolls);
   }
 
   applyTargetNumber(results, tnCtx) {
-    // Implement target number and raise step calculation
-    // Return success/failure with raises
-    return new RollResult(results[0].result);
+    // Extract target number and raise step
+    let targetNum = 4;  // Default for Savage Worlds
+    let raiseStep = 4;  // Default raise step
+
+    if (tnCtx.tt) targetNum = parseInt(tnCtx.tt.getText());
+    if (tnCtx.tr) raiseStep = parseInt(tnCtx.tr.getText());
+    if (tnCtx.tnr) {
+      targetNum = parseInt(tnCtx.tnr.getText());
+      raiseStep = targetNum;
+    }
+    if (tnCtx.tgtn) targetNum = parseInt(tnCtx.tgtn.getText());
+
+    // Calculate success/failure with raises
+    const result = results[0];
+    const total = result.result || result.total;
+    const margin = total - targetNum;
+    const success = margin >= 0;
+    const raises = success ? Math.floor(margin / raiseStep) : 0;
+
+    let desc = result.usedDie
+      ? `Trait: ${this.formatAcingRoll(result.trait)}, Wild: ${this.formatAcingRoll(result.wild)} → ${total}`
+      : `Roll: ${total}`;
+
+    if (success) {
+      desc += raises > 0 ? ` - Success with ${raises} raise${raises > 1 ? 's' : ''}!` : ' - Success!';
+    } else {
+      desc += ` - Failed by ${Math.abs(margin)}`;
+    }
+
+    return new RollResult(total, desc, { ...result, success, raises, margin });
   }
 
   applyTargetNumberSingle(value, tnCtx) {
-    // Implement target number for single roll
-    return new RollResult(value);
+    // Extract target number and raise step
+    let targetNum = 4;
+    let raiseStep = 4;
+
+    if (tnCtx.tt) targetNum = parseInt(tnCtx.tt.getText());
+    if (tnCtx.tr) raiseStep = parseInt(tnCtx.tr.getText());
+    if (tnCtx.tnr) {
+      targetNum = parseInt(tnCtx.tnr.getText());
+      raiseStep = targetNum;
+    }
+    if (tnCtx.tgtn) targetNum = parseInt(tnCtx.tgtn.getText());
+
+    const margin = value - targetNum;
+    const success = margin >= 0;
+    const raises = success ? Math.floor(margin / raiseStep) : 0;
+
+    let desc = success
+      ? (raises > 0 ? `Success with ${raises} raise${raises > 1 ? 's' : ''}! (${value} vs TN ${targetNum})` : `Success! (${value} vs TN ${targetNum})`)
+      : `Failed by ${Math.abs(margin)} (${value} vs TN ${targetNum})`;
+
+    return new RollResult(value, desc, { success, raises, margin });
+  }
+
+  applyTargetNumberMultiple(rolls, tnCtx, total) {
+    // For multiple rolls with target number
+    let targetNum = 4;
+    let raiseStep = 4;
+
+    if (tnCtx.tt) targetNum = parseInt(tnCtx.tt.getText());
+    if (tnCtx.tr) raiseStep = parseInt(tnCtx.tr.getText());
+    if (tnCtx.tnr) {
+      targetNum = parseInt(tnCtx.tnr.getText());
+      raiseStep = targetNum;
+    }
+    if (tnCtx.tgtn) targetNum = parseInt(tnCtx.tgtn.getText());
+
+    const margin = total - targetNum;
+    const success = margin >= 0;
+    const raises = success ? Math.floor(margin / raiseStep) : 0;
+
+    let desc = `Rolls: [${rolls.map(r => r.total).join(', ')}] = ${total}`;
+    desc += success
+      ? (raises > 0 ? ` - Success with ${raises} raise${raises > 1 ? 's' : ''}!` : ' - Success!')
+      : ` - Failed by ${Math.abs(margin)}`;
+
+    return new RollResult(total, desc, { rolls, success, raises, margin });
   }
 }
 
@@ -323,25 +599,29 @@ export class R2EvaluatorVisitor /* extends R2Visitor */ {
  * @returns {RollResult} - The result of the evaluation
  */
 export function evaluateExpression(expression) {
-  // This function will work after generating the parser
-  // For now, it's a placeholder that falls back to basic parsing
-
   try {
-    // TODO: Uncomment after running npm run generate-parser
-    /*
     const chars = new antlr4.InputStream(expression);
     const lexer = new R2Lexer(chars);
     const tokens = new antlr4.CommonTokenStream(lexer);
     const parser = new R2Parser(tokens);
 
+    // Build error listener for better error messages
+    parser.removeErrorListeners();
+    parser.addErrorListener({
+      syntaxError: (_recognizer, _offendingSymbol, _line, column, msg) => {
+        throw new Error(`Syntax error at position ${column}: ${msg}`);
+      }
+    });
+
     const tree = parser.commandElement();
     const evaluator = new R2EvaluatorVisitor();
     return evaluator.visit(tree);
-    */
-
-    // Fallback to basic parsing for now
-    throw new Error('Parser not generated yet. Run: npm run generate-parser');
   } catch (error) {
-    throw new Error(`Failed to evaluate expression: ${error.message}`);
+    // Provide helpful error message
+    if (error.message && error.message.includes('Cannot find module')) {
+      throw new Error('Parser not generated yet. Run: npm run generate-parser');
+    }
+    // Re-throw with more context
+    throw error;
   }
 }

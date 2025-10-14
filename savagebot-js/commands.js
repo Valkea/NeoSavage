@@ -1,5 +1,6 @@
 import { MessageFlags } from 'discord.js';
 import { parseDiceExpression, rollWithWildDie, rollAndKeep, calculateRaises } from './diceUtils.js';
+import { evaluateExpression } from './r2Evaluator.js';
 import { InitiativeTracker } from './initiativeUtils.js';
 import { BennyManager, StateManager } from './bennyUtils.js';
 
@@ -31,7 +32,7 @@ function getStateManager(guildId) {
 }
 
 /**
- * Roll command - basic dice rolling
+ * Roll command - dice rolling with R2 grammar support
  */
 export async function cmd_roll(interaction) {
   const expression = interaction.options.getString('dice');
@@ -39,21 +40,51 @@ export async function cmd_roll(interaction) {
   const modifier = interaction.options.getInteger('modifier') || 0;
 
   try {
-    // Parse dice expression
+    // Build full expression
     let fullExpression = expression;
+
+    // For acing flag, add '!' suffix if not already present
+    if (acing && !expression.includes('!')) {
+      // Simple pattern: if it's just XdY, add !
+      if (/^\d*d\d+$/.test(expression.toLowerCase())) {
+        fullExpression = expression + '!';
+      }
+    }
+
+    // Add modifier if specified
     if (modifier !== 0) {
       fullExpression += (modifier > 0 ? '+' : '') + modifier;
     }
 
-    const result = parseDiceExpression(fullExpression, acing);
+    // Try R2 evaluator first (supports complex expressions like 10x3d6k1+4)
+    try {
+      const result = evaluateExpression(fullExpression);
 
-    let response = `🎲 **Roll: ${fullExpression}**\n`;
-    response += `**Result:** ${result.total}\n`;
-    if (result.breakdown) {
-      response += `**Breakdown:** ${result.breakdown}`;
+      let response = `🎲 **Roll: ${fullExpression}**\n`;
+      response += `**Result:** ${result.value}\n`;
+      if (result.description) {
+        response += `**Details:** ${result.description}`;
+      }
+
+      await interaction.reply(response);
+    } catch (r2Error) {
+      // Fallback to basic parser for simple expressions
+      if (r2Error.message.includes('Parser not generated')) {
+        // Parser not available, use basic parsing
+        const result = parseDiceExpression(fullExpression, acing);
+
+        let response = `🎲 **Roll: ${fullExpression}**\n`;
+        response += `**Result:** ${result.total}\n`;
+        if (result.breakdown) {
+          response += `**Breakdown:** ${result.breakdown}`;
+        }
+
+        await interaction.reply(response);
+      } else {
+        // R2 parser error, re-throw
+        throw r2Error;
+      }
     }
-
-    await interaction.reply(response);
   } catch (error) {
     await interaction.reply({
       content: `❌ Error: ${error.message}`,

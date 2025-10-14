@@ -3,6 +3,7 @@ import { SlashCommandBuilder } from '@discordjs/builders';
 import { config } from './config.js';
 import {
   cmd_roll,
+  cmd_roll_help,
   cmd_wild,
   cmd_fight_start,
   cmd_fight_end,
@@ -192,7 +193,15 @@ const commands = [
   // Help command
   new SlashCommandBuilder()
     .setName('help')
-    .setDescription('Show help and command list'),
+    .setDescription('Show help and command list')
+    .addSubcommand(subcommand =>
+      subcommand
+        .setName('commands')
+        .setDescription('Show bot commands'))
+    .addSubcommand(subcommand =>
+      subcommand
+        .setName('rolls')
+        .setDescription('Show dice rolling guide')),
 ];
 
 // Register commands when bot is ready
@@ -268,7 +277,19 @@ client.on(Events.InteractionCreate, async (interaction) => {
 
     // Help
     else if (commandName === 'help') {
-      await cmd_help(interaction);
+      const subcommand = interaction.options.getSubcommand(false);
+
+      if (subcommand === 'rolls') {
+        await cmd_roll_help(interaction);
+      } else if (subcommand === 'commands') {
+        await cmd_help(interaction);
+      } else {
+        // Default help - show brief overview
+        await interaction.reply({
+          content: `# 🎲 Savagebot Help\n\nUse \`/help\` with subcommands to access detailed help:\n\n📋 **Bot Commands** - \`/help commands\`\n🎲 **Dice Rolling Guide** - \`/help rolls\`\n\nFor quick dice rolls, just use \`/roll dice:2d6\`!`,
+          flags: [MessageFlags.Ephemeral]
+        });
+      }
     }
 
   } catch (error) {

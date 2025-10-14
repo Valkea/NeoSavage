@@ -347,11 +347,87 @@ export async function cmd_state(interaction) {
 }
 
 /**
+ * Roll Help - Comprehensive guide to all rolling strategies
+ */
+export async function cmd_roll_help(interaction) {
+  const help = `# 🎲 Dice Rolling Guide
+
+## Basic Rolls
+\`2d6\` - Roll 2 six-sided dice
+\`d20\` - Roll 1 twenty-sided dice
+\`3d8+5\` - Roll 3d8 and add 5
+\`d%\` or \`d100\` - Roll percentile dice
+
+## Exploding/Acing Dice
+\`d6!\` - Exploding die (reroll on max)
+\`2d8!\` - Multiple exploding dice
+**Example**: d6! rolls 6 → 6+4 → 6+4+2 = 12
+
+## Savage Worlds Rolls
+\`s8\` - Roll d8 trait + d6 wild, keep highest
+\`s10w6\` - Roll d10 trait + d6 wild
+\`2s6\` - Roll for 2 characters
+\`s8t4\` - Roll with target number 4
+\`s8t4r4\` - Target 4, raises every 4
+**Wild Cards**: Always roll trait + wild die!
+
+## Extras (NPCs) Rolls
+\`e6\` - Single exploding d6 (no wild die)
+\`4e8\` - Roll 4 extras with d8
+\`e6t4\` - Extras roll vs target 4
+**Extras**: Single exploding die only
+
+## Keep/Drop Dice
+\`4d6k3\` - Roll 4d6, keep highest 3
+\`4d6kl\` - Keep lowest 1
+\`2d20adv\` - Advantage (keep highest)
+\`2d20dis\` - Disadvantage (keep lowest)
+**D&D 5e**: Use adv/dis for advantage/disadvantage
+
+## Success Counting
+\`10d6s5\` - Count successes (≥5)
+\`8d10s7f1\` - Successes ≥7, failures ≤1
+**Shadowrun/WoD**: Count dice meeting threshold
+
+## Multiple Rolls
+\`3x2d6\` - Roll 2d6 three times
+\`10x3d6k1+4\` - Roll (3d6 keep 1)+4 ten times
+**NPC Groups**: Roll for multiple enemies at once
+
+## Advanced Features
+\`@hp := 2d6+10\` - Store result in variable 'hp'
+\`@hp\` - Use stored variable value
+\`@str := 3d6; @hp := @str*2\` - Chain variables
+\`2d6[3:12]\` - Bound result between 3-12
+\`1--100\` - Gygax range roll (1 to 100)
+\`t4:d8!\` - Target number then roll
+
+## Other RPG Systems
+\`4dF\` - Fudge/FATE dice (-1, 0, +1)
+\`5w\` - WEG D6 wild die
+\`dC\` - Carcosa roll
+\`p10\` - Sword World power roll
+\`i+2\` - Ironsworn roll with +2
+
+## Arithmetic
+\`2d6+1d4\` - Add rolls together
+\`3d8*2\` - Multiply result
+\`(2d6+3)*2\` - Use parentheses
+
+**Tip**: Use \`/help rolls\` anytime to see this guide!
+**Pro Tip**: Combine features: \`3x(4d6k3)\` for D&D ability scores!`;
+
+  await interaction.reply({
+    content: help,
+    flags: [MessageFlags.Ephemeral]
+  });
+}
+
+/**
  * Help command
  */
 export async function cmd_help(interaction) {
-  const help = `# 🎲 Savagebot Commands
-
+  const help = `
 ## 🎲 Dice Rolling
 **/roll** - Roll dice (e.g., 2d6+3, d20, 3d8-2)
   • \`dice\`: Dice expression
@@ -389,7 +465,8 @@ export async function cmd_help(interaction) {
   • \`state\`: State name (for add/remove)
 
 ## ℹ️ Help
-**/help** - Show this help message
+**/help commands** - Show this help message
+**/help rolls** - Show the various rolling strategies
 `;
 
   await interaction.reply({

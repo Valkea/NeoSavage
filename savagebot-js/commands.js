@@ -395,12 +395,11 @@ export async function cmd_roll_help(interaction) {
 **NPC Groups**: Roll for multiple enemies at once
 
 ## Advanced Features
-\`@hp := 2d6+10\` - Store result in variable 'hp'
-\`@hp\` - Use stored variable value
-\`@str := 3d6; @hp := @str*2\` - Chain variables
+\`@str := 3d6; @str*2\` - Variables in single expression
 \`2d6[3:12]\` - Bound result between 3-12
 \`1--100\` - Gygax range roll (1 to 100)
 \`t4:d8!\` - Target number then roll
+**Note**: Variables only work within a single roll command
 
 ## Other RPG Systems
 \`4dF\` - Fudge/FATE dice (-1, 0, +1)

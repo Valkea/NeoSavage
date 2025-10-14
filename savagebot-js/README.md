@@ -35,14 +35,25 @@ A Discord bot for **Savage Worlds** tabletop RPG mechanics, written in JavaScrip
    npm install
    ```
 
-3. Create a `.env` file (copy from `.env.example`):
+3. **Generate the ANTLR4 parser** (required for advanced dice expressions):
+   ```bash
+   # Install ANTLR4 globally (one-time setup)
+   npm install -g antlr4
+
+   # Generate the parser
+   npm run generate-parser
+   ```
+
+   See `SETUP_PARSER.md` for detailed parser setup instructions.
+
+4. Create a `.env` file (copy from `.env.example`):
    ```env
    DISCORD_TOKEN=your_bot_token_here
    CLIENT_ID=your_client_id_here
    GUILD_ID=your_guild_id_here
    ```
 
-4. Run the bot:
+5. Run the bot:
    ```bash
    npm start
    ```
@@ -78,6 +89,42 @@ A Discord bot for **Savage Worlds** tabletop RPG mechanics, written in JavaScrip
 
 ### Help
 - `/help` - Show command help
+
+## Advanced Dice Rolling (R2 Grammar)
+
+After generating the ANTLR4 parser, the bot supports the full R2 dice expression grammar:
+
+### Supported Syntax
+
+**Generic Rolls**
+- `XdY` - Roll X dice with Y sides (e.g., `2d6`, `d20`)
+- `XdY!` - Exploding dice (reroll and add on max)
+- `XdY kN` - Keep highest N dice (e.g., `4d6 k3`)
+- `XdY kl N` - Keep lowest N dice
+- `2d20 adv` / `2d20 dis` - Advantage/Disadvantage
+- `XdY sN` - Count successes ≥ N (e.g., `10d6 s5`)
+- `XdY sN fM` - Count successes ≥N and failures ≤M
+- `XdY tN rM` - Target number N with raises every M
+
+**Savage Worlds**
+- `sX` - Savage Worlds roll (trait die with wild die)
+- `sX wY` - Specify wild die size (e.g., `s8 w6`)
+- `eX` - Extras roll (single acing die)
+- `4e6` - Multiple extras rolls
+
+**Other Systems**
+- `XdF` - Fudge/FATE dice
+- `XdC` - Carcosa dice
+- `XW` - West End Games D6 (with wild die)
+- `pX` - Sword World power roll
+
+**Advanced Features**
+- `X--Y` - Gygax range roll (e.g., `1--100`)
+- `NxExpression` - Batch roll (e.g., `5x2d6`)
+- `@var := Expression` - Variable assignment
+- `Expression[min:max]` - Bound result
+- Arithmetic: `+`, `-`, `*`, `/`, `%`
+- `--flag` - Flags for special behaviors
 
 ## Examples
 

@@ -6,14 +6,16 @@
   "type": "module",
   "scripts": {
     "start": "node index.js",
-    "dev": "nodemon index.js"
+    "dev": "nodemon index.js",
+    "generate-parser": "antlr4 -Dlanguage=JavaScript -visitor R2.g4 -o ./parser"
   },
   "keywords": ["discord", "bot", "rpg", "savage-worlds", "dice", "tabletop"],
   "author": "",
   "license": "MIT",
   "dependencies": {
     "discord.js": "^14.14.1",
-    "dotenv": "^16.3.1"
+    "dotenv": "^16.3.1",
+    "antlr4": "^4.13.1"
   },
   "devDependencies": {
     "nodemon": "^3.0.2"

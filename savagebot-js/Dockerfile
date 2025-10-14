@@ -7,8 +7,12 @@ RUN apk add --no-cache \
     curl \
     bash
 
-# Install ANTLR4 globally
-RUN npm install -g antlr4@4.13.1
+# Download ANTLR4 JAR and create executable wrapper
+RUN mkdir -p /usr/local/lib && \
+    curl -o /usr/local/lib/antlr-4.13.1-complete.jar \
+    https://www.antlr.org/download/antlr-4.13.1-complete.jar && \
+    printf '#!/bin/sh\nexec java -jar /usr/local/lib/antlr-4.13.1-complete.jar "$@"\n' > /usr/local/bin/antlr4 && \
+    chmod +x /usr/local/bin/antlr4
 
 # Set working directory
 WORKDIR /app
@@ -25,7 +29,7 @@ COPY *.js ./
 
 # Generate ANTLR4 parser
 RUN mkdir -p parser && \
-    antlr4 -Dlanguage=JavaScript -visitor R2.g4 -o ./parser
+    /usr/local/bin/antlr4 -Dlanguage=JavaScript -visitor R2.g4 -o ./parser
 
 # Production stage
 FROM node:20-alpine

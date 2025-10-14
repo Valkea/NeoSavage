@@ -29,6 +29,31 @@ A Discord bot for **Savage Worlds** tabletop RPG mechanics, written in JavaScrip
 
 ## Installation
 
+### Option 1: Docker (Recommended)
+
+The easiest way to run the bot with all dependencies pre-installed:
+
+```bash
+# 1. Clone the repository
+git clone <repository-url>
+cd savagebot-js
+
+# 2. Create .env file
+cp .env.example .env
+# Edit .env with your Discord bot token
+
+# 3. Build and run with Docker Compose
+docker-compose up -d
+
+# View logs
+docker-compose logs -f
+
+# Stop the bot
+docker-compose down
+```
+
+### Option 2: Manual Installation
+
 1. Clone the repository
 2. Install dependencies:
    ```bash

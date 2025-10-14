@@ -1,0 +1,52 @@
+services:
+  savagebot:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    image: savagebot-js:latest
+    container_name: savagebot
+    restart: unless-stopped
+
+    # Environment variables
+    env_file:
+      - .env
+
+    # Alternative: specify environment variables directly
+    # environment:
+    #   - DISCORD_TOKEN=${DISCORD_TOKEN}
+    #   - CLIENT_ID=${CLIENT_ID}
+    #   - GUILD_ID=${GUILD_ID}
+    #   - NODE_ENV=production
+
+    # Resource limits (optional)
+    deploy:
+      resources:
+        limits:
+          cpus: '0.5'
+          memory: 512M
+        reservations:
+          cpus: '0.25'
+          memory: 256M
+
+    # Logging configuration
+    logging:
+      driver: "json-file"
+      options:
+        max-size: "10m"
+        max-file: "3"
+
+    # Health check (optional - requires adding health endpoint)
+    # healthcheck:
+    #   test: ["CMD", "node", "-e", "require('http').get('http://localhost:3000/health')"]
+    #   interval: 30s
+    #   timeout: 10s
+    #   retries: 3
+    #   start_period: 40s
+
+    # Network configuration
+    networks:
+      - savagebot-network
+
+networks:
+  savagebot-network:
+    driver: bridge

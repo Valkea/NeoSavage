@@ -14,8 +14,6 @@ services:
     # Alternative: specify environment variables directly
     # environment:
     #   - DISCORD_TOKEN=${DISCORD_TOKEN}
-    #   - CLIENT_ID=${CLIENT_ID}
-    #   - GUILD_ID=${GUILD_ID}
     #   - NODE_ENV=production
 
     # Resource limits (optional)

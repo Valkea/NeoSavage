@@ -18,8 +18,4 @@ function requireEnv(name, required = true) {
 
 export const config = {
   token: requireEnv('DISCORD_TOKEN'),
-  // Note: clientId and guildId are defined but currently unused in the codebase
-  // They are kept here for potential future Discord.js features (e.g., guild-specific command registration)
-  clientId: requireEnv('CLIENT_ID', false), // Optional - for application commands
-  guildId: requireEnv('GUILD_ID', false)    // Optional - for guild-specific features
 };

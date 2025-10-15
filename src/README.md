@@ -1,4 +1,4 @@
-# Savagebot JS
+# NeoSavage
 
 A Discord bot for **Savage Worlds** tabletop RPG mechanics, written in JavaScript using Discord.js.
 
@@ -36,7 +36,7 @@ The easiest way to run the bot with all dependencies pre-installed:
 ```bash
 # 1. Clone the repository
 git clone <repository-url>
-cd savagebot-js
+cd src
 
 # 2. Create .env file
 cp .env.example .env

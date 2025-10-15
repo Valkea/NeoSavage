@@ -1,10 +1,10 @@
 services:
-  savagebot:
+  neosavage:
     build:
       context: .
       dockerfile: Dockerfile
-    image: savagebot-js:latest
-    container_name: savagebot
+    image: neosavage:latest
+    container_name: neosavage
     restart: unless-stopped
 
     # Environment variables
@@ -43,8 +43,8 @@ services:
 
     # Network configuration
     networks:
-      - savagebot-network
+      - neosavage-network
 
 networks:
-  savagebot-network:
+  neosavage-network:
     driver: bridge

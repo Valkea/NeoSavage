@@ -1,11 +1,44 @@
 import { EmbedBuilder } from 'discord.js';
+import { readFileSync } from 'fs';
+import { fileURLToPath } from 'url';
+import { dirname, join } from 'path';
+
+const __filename = fileURLToPath(import.meta.url);
+const __dirname = dirname(__filename);
 
 /**
  * Constants for embed styling
  */
 const DICE_COLOR = 3447003; // Blue color
-const DICE_ICON = 'https://cdn-icons-png.flaticon.com/128/3426/3426286.png';
-const DICE_FOOTER = 'by max.icons @ Flaticon';
+
+/**
+ * Load dice icons from JSON configuration
+ */
+const diceIconsData = JSON.parse(readFileSync(join(__dirname, 'diceIcons.json'), 'utf8'));
+
+/**
+ * Get a random dice icon from the configuration
+ * @returns {Object} { url: string, footer: string }
+ */
+function getRandomDiceIcon() {
+  // Flatten all URLs with their author/source info
+  const allIcons = [];
+  for (const entry of diceIconsData.icons) {
+    for (const url of entry.urls) {
+      allIcons.push({
+        url,
+        author: entry.author,
+        source: entry.source
+      });
+    }
+  }
+
+  const randomIcon = allIcons[Math.floor(Math.random() * allIcons.length)];
+  return {
+    url: randomIcon.url,
+    footer: `by ${randomIcon.author} @ ${randomIcon.source}`
+  };
+}
 
 /**
  * Format a single roll with optional exploding dice and modifiers
@@ -56,6 +89,7 @@ function formatRollValue(roll, hasExploded = false, dropCount = null) {
  */
 export function createSingleRollEmbed(expression, result) {
   const hasExploded = result.rolls && result.rolls.some(r => r === Math.max(...result.rolls));
+  const diceIcon = getRandomDiceIcon();
 
   const embed = new EmbedBuilder()
     .setColor(DICE_COLOR)
@@ -65,10 +99,10 @@ export function createSingleRollEmbed(expression, result) {
       value: formatRollValue(result, hasExploded),
       inline: false
     })
-    .setThumbnail(DICE_ICON)
+    .setThumbnail(diceIcon.url)
     .setFooter({
-      text: DICE_FOOTER,
-      iconURL: DICE_ICON
+      text: diceIcon.footer,
+      iconURL: diceIcon.url
     });
 
   return embed;
@@ -86,6 +120,7 @@ export function createMultipleRollsEmbed(expression, rolls, total) {
     const hasExploded = roll.rolls && roll.rolls.some(r => r === Math.max(...roll.rolls));
     return formatRollValue(roll, hasExploded);
   }).join('\n');
+  const diceIcon = getRandomDiceIcon();
 
   const embed = new EmbedBuilder()
     .setColor(DICE_COLOR)
@@ -102,10 +137,10 @@ export function createMultipleRollsEmbed(expression, rolls, total) {
         inline: false
       }
     )
-    .setThumbnail(DICE_ICON)
+    .setThumbnail(diceIcon.url)
     .setFooter({
-      text: DICE_FOOTER,
-      iconURL: DICE_ICON
+      text: diceIcon.footer,
+      iconURL: diceIcon.url
     });
 
   return embed;
@@ -120,6 +155,7 @@ export function createMultipleRollsEmbed(expression, rolls, total) {
 export function createWildDieEmbed(expression, result) {
   const traitRoll = formatRollValue(result.traitRoll, true);
   const wildRoll = formatRollValue(result.wildRoll, true);
+  const diceIcon = getRandomDiceIcon();
 
   const embed = new EmbedBuilder()
     .setColor(DICE_COLOR)
@@ -141,10 +177,10 @@ export function createWildDieEmbed(expression, result) {
         inline: false
       }
     )
-    .setThumbnail(DICE_ICON)
+    .setThumbnail(diceIcon.url)
     .setFooter({
-      text: DICE_FOOTER,
-      iconURL: DICE_ICON
+      text: diceIcon.footer,
+      iconURL: diceIcon.url
     });
 
   // Add raises information if target number provided
@@ -212,13 +248,15 @@ function formatR2Dice(description) {
  * @returns {EmbedBuilder}
  */
 export function createR2ResultEmbed(expression, result) {
+  const diceIcon = getRandomDiceIcon();
+
   const embed = new EmbedBuilder()
     .setColor(DICE_COLOR)
     .setDescription(`\`${expression}\``)
-    .setThumbnail(DICE_ICON)
+    .setThumbnail(diceIcon.url)
     .setFooter({
-      text: DICE_FOOTER,
-      iconURL: DICE_ICON
+      text: diceIcon.footer,
+      iconURL: diceIcon.url
     });
 
   // Check if this is multiple rolls (result.rolls is an array of RollResult objects)

@@ -26,6 +26,7 @@ RUN npm install --omit=dev
 # Copy grammar and source files
 COPY R2.g4 ./
 COPY *.js ./
+COPY *.json ./
 
 # Generate ANTLR4 parser
 RUN mkdir -p parser && \
@@ -45,6 +46,7 @@ WORKDIR /app
 COPY --from=builder /app/node_modules ./node_modules
 COPY --from=builder /app/parser ./parser
 COPY --from=builder /app/*.js ./
+COPY --from=builder /app/*.json ./
 COPY --from=builder /app/package*.json ./
 
 # Create non-root user

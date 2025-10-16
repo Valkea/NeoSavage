@@ -101,6 +101,9 @@ export async function cmd_wild(interaction) {
 
     const expression = `d${traitDie}${modifier !== 0 ? (modifier > 0 ? '+' : '') + modifier : ''}`;
     const embed = createWildDieEmbed(expression, result);
+
+    console.log('[cmd_wild] Embed object:', JSON.stringify(embed.toJSON(), null, 2));
+
     await interaction.reply({ embeds: [embed] });
   } catch (error) {
     const embed = createErrorEmbed(error.message);

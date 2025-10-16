@@ -1,4 +1,4 @@
-# Multi-stage build for Savagebot JS
+# Multi-stage build for NeoSavage JS
 FROM node:20-alpine AS builder
 
 # Install Java and ANTLR4 dependencies

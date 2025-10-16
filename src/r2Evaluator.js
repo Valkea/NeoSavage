@@ -421,7 +421,7 @@ export class R2EvaluatorVisitor extends R2Visitor {
     return roll.total.toString();
   }
 
-  applyGenericSuffix(rolls, total, suffix, sides) {
+  applyGenericSuffix(rolls, total, suffix) {
     // Handle RollAndKeepSuffix
     if (suffix.constructor.name === 'RollAndKeepSuffixContext') {
       const op = suffix.op.text.toLowerCase();
@@ -434,14 +434,14 @@ export class R2EvaluatorVisitor extends R2Visitor {
         const dropped = sorted.slice(keepCount);
         const keptTotal = kept.reduce((sum, r) => sum + r.total, 0);
 
-        // Format: 💀[dropped] 🎲[kept] = total
-        const droppedStr = dropped.length > 0 ? `💀[${dropped.map(r => r.total).join(', ')}]` : '';
-        const keptStr = `🎲[${kept.map(r => r.total).join(', ')}]`;
+        // Format: [kept dice]|[dropped dice values]
+        const keptDescription = this.formatRolls(kept);
+        const droppedValues = dropped.map(r => this.formatAcingRoll(r)).join(', ');
 
         return new RollResult(
           keptTotal,
-          `${droppedStr}${keptStr}`,
-          { kept, dropped, all: rolls }
+          droppedValues ? `${keptDescription}|${droppedValues}` : keptDescription,
+          kept
         );
       } else if (op === 'kl' || op === 'dis') {
         // Keep lowest
@@ -450,14 +450,14 @@ export class R2EvaluatorVisitor extends R2Visitor {
         const dropped = sorted.slice(keepCount);
         const keptTotal = kept.reduce((sum, r) => sum + r.total, 0);
 
-        // Format: 💀[dropped] 🎲[kept] = total
-        const droppedStr = dropped.length > 0 ? `💀[${dropped.map(r => r.total).join(', ')}]` : '';
-        const keptStr = `🎲[${kept.map(r => r.total).join(', ')}]`;
+        // Format: [kept dice]|[dropped dice values]
+        const keptDescription = this.formatRolls(kept);
+        const droppedValues = dropped.map(r => this.formatAcingRoll(r)).join(', ');
 
         return new RollResult(
           keptTotal,
-          `${droppedStr}${keptStr}`,
-          { kept, dropped, all: rolls }
+          droppedValues ? `${keptDescription}|${droppedValues}` : keptDescription,
+          kept
         );
       }
     }

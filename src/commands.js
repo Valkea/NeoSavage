@@ -3,6 +3,12 @@ import { parseDiceExpression, rollWithWildDie, calculateRaises } from './diceUti
 import { evaluateExpression } from './r2Evaluator.js';
 import { InitiativeTracker } from './initiativeUtils.js';
 import { BennyManager, StateManager } from './bennyUtils.js';
+import {
+  createSingleRollEmbed,
+  createWildDieEmbed,
+  createR2ResultEmbed,
+  createErrorEmbed
+} from './embedBuilder.js';
 
 // Game state managers
 const initiativeTrackers = new Map(); // guildId -> InitiativeTracker
@@ -59,37 +65,25 @@ export async function cmd_roll(interaction) {
     // Try R2 evaluator first (supports complex expressions like 10x3d6k1+4)
     try {
       const result = evaluateExpression(fullExpression);
-
-      let response = `🎲 **Roll: ${fullExpression}**\n`;
-      response += `**Result:** ${result.value}\n`;
-      if (result.description) {
-        response += `**Details:** ${result.description}`;
-      }
-
-      await interaction.reply(response);
+      console.log(result);
+      const embed = createR2ResultEmbed(fullExpression, result);
+      await interaction.reply({ embeds: [embed] });
     } catch (r2Error) {
       // Fallback to basic parser for simple expressions
       if (r2Error.message.includes('Parser not generated')) {
         // Parser not available, use basic parsing
         const result = parseDiceExpression(fullExpression, acing);
-
-        let response = `🎲 **Roll: ${fullExpression}**\n`;
-        response += `**Result:** ${result.total}\n`;
-        if (result.breakdown) {
-          response += `**Breakdown:** ${result.breakdown}`;
-        }
-
-        await interaction.reply(response);
+        console.log(result);
+        const embed = createSingleRollEmbed(fullExpression, result);
+        await interaction.reply({ embeds: [embed] });
       } else {
         // R2 parser error, re-throw
         throw r2Error;
       }
     }
   } catch (error) {
-    await interaction.reply({
-      content: `❌ Error: ${error.message}`,
-      flags: [MessageFlags.Ephemeral]
-    });
+    const embed = createErrorEmbed(error.message);
+    await interaction.reply({ embeds: [embed], flags: [MessageFlags.Ephemeral] });
   }
 }
 
@@ -103,21 +97,14 @@ export async function cmd_wild(interaction) {
 
   try {
     const result = rollWithWildDie(traitDie, modifier);
+    result.raises = calculateRaises(result.total, targetNumber);
 
-    let response = `🎲 **Wild Die Roll: d${traitDie}**\n`;
-    response += `**Trait Die:** ${formatAcingRolls(result.traitRoll)} = ${result.traitTotal}\n`;
-    response += `**Wild Die:** ${formatAcingRolls(result.wildRoll)} = ${result.wildTotal}\n`;
-    response += `**Final Result:** ${result.total} (used ${result.usedDie} die)\n`;
-
-    const raises = calculateRaises(result.total, targetNumber);
-    response += `\n${raises.description} (TN: ${targetNumber})`;
-
-    await interaction.reply(response);
+    const expression = `d${traitDie}${modifier !== 0 ? (modifier > 0 ? '+' : '') + modifier : ''}`;
+    const embed = createWildDieEmbed(expression, result);
+    await interaction.reply({ embeds: [embed] });
   } catch (error) {
-    await interaction.reply({
-      content: `❌ Error: ${error.message}`,
-      flags: [MessageFlags.Ephemeral]
-    });
+    const embed = createErrorEmbed(error.message);
+    await interaction.reply({ embeds: [embed], flags: [MessageFlags.Ephemeral] });
   }
 }
 

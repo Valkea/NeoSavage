@@ -56,16 +56,14 @@ function formatRollValue(roll, hasExploded = false, dropCount = null) {
 
   let rollDisplay;
 
-  if (hasExploded) {
-    // Format: **21** ← **[** **( 6💥,6💥, 2 )**, 3, 4** ]**
-    const explodingPart = roll.rolls.filter(r => r === Math.max(...roll.rolls)).map(r => `${r}💥`).join(', ');
-    const regularPart = roll.rolls.filter(r => r !== Math.max(...roll.rolls));
+  if (hasExploded && roll.rolls.length > 1) {
+    // Format: **21** ← **[** **( 6💥, 6💥, 2 )** ]**
+    // In acing dice: all rolls EXCEPT the last one exploded
+    const explodedRolls = roll.rolls.slice(0, -1).map(r => `${r}💥`);
+    const finalRoll = roll.rolls[roll.rolls.length - 1];
+    const allRolls = [...explodedRolls, finalRoll];
 
-    if (regularPart.length > 0) {
-      rollDisplay = `**(** ${explodingPart} **)**, ${regularPart.join(', ')}`;
-    } else {
-      rollDisplay = `**(** ${explodingPart} **)**`;
-    }
+    rollDisplay = `**(** ${allRolls.join(', ')} **)**`;
   } else {
     // Format: **10** ← **[ **3, 5, 2** ]**
     rollDisplay = `${roll.rolls.join(', ')}`;
@@ -150,47 +148,98 @@ export function createMultipleRollsEmbed(expression, rolls, total) {
  * Create embed for Savage Worlds wild die roll
  * @param {string} expression - Dice expression
  * @param {Object} result - Wild die result
+ * @param {number} targetNumber - Target number for the roll
+ * @param {number} raiseInterval - Points needed per raise (default 4)
  * @returns {EmbedBuilder}
  */
-export function createWildDieEmbed(expression, result) {
+export function createWildDieEmbed(expression, result, targetNumber = null, raiseInterval = 4) {
   const traitRoll = formatRollValue(result.traitRoll, true);
   const wildRoll = formatRollValue(result.wildRoll, true);
   const diceIcon = getRandomDiceIcon();
 
-  const embed = new EmbedBuilder()
-    .setColor(DICE_COLOR)
-    .setDescription(`\`${expression}\``)
-    .addFields(
-      {
-        name: '__Trait Die__',
-        value: traitRoll,
-        inline: true
-      },
-      {
-        name: '__Wild Die__',
-        value: wildRoll,
-        inline: true
-      },
-      {
-        name: '__Final Result__',
-        value: `**${result.total}** (used ${result.usedDie} die)`,
-        inline: false
-      }
-    )
-    .setThumbnail(diceIcon.url)
-    .setFooter({
-      text: diceIcon.footer,
-      iconURL: diceIcon.url
-    });
+  // Determine what fields we have
+  const hasModifier = result.modifier && result.modifier !== 0;
+
+  // Build final result display with calculation breakdown
+  let finalResultText = `**${result.total}**`;
+
+  // Show calculation if there's a modifier
+  if (hasModifier) {
+    const baseTotal = result.usedDie === 'trait' ? result.traitRoll.total : result.wildRoll.total;
+    const modifierSign = result.modifier > 0 ? '+' : '';
+    finalResultText = `**${result.total}** ← **[** ${baseTotal} ${modifierSign}${result.modifier} **]**`;
+  }
+
+  finalResultText += ` • used ${result.usedDie} die`;
+
+  // Build fields array conditionally
+
+  const fields = [
+    {
+      name: '__Trait Die__',
+      value: traitRoll,
+      inline: true
+    },
+    {
+      name: '__Wild Die__',
+      value: wildRoll,
+      inline: true
+    }
+  ];
 
   // Add raises information if target number provided
   if (result.raises !== undefined) {
-    embed.addFields({
-      name: '__Success__',
-      value: result.raises.description,
-      inline: false
-    });
+    let successText;
+
+    if (result.raises.success) {
+      if (result.raises.raises > 0) {
+        const stars = '⭐'.repeat(result.raises.raises);
+        const raiseWord = result.raises.raises === 1 ? 'raise' : 'raises';
+        successText = `✅ Success with ${result.raises.raises} ${stars} ${raiseWord}`;
+      } else {
+        successText = '✅ Success';
+      }
+    } else {
+      successText = `💀 ${result.raises.description}`;
+    }
+
+    if (targetNumber !== null) {
+      successText += ` (🎯 ${targetNumber} | 🪜 ${raiseInterval})`;
+    }
+
+    finalResultText += `\n\n${successText}`;
   }
+
+  // Add final result field
+  fields.push({
+    name: '__Final Result__',
+    value: finalResultText,
+    inline: false
+  });
+
+  // Determine thumbnail based on success/failure
+  let thumbnailUrl = diceIcon.url;
+
+  // If we have raises information, use success/failure icons
+  if (result.raises !== undefined) {
+    if (result.raises.success) {
+      // Success
+      thumbnailUrl = 'https://cdn-icons-png.flaticon.com/512/3426/3426250.png';
+      if (result.raises.raises > 0) {
+        // Success with raises
+        thumbnailUrl = 'https://cdn-icons-png.flaticon.com/512/3426/3426127.png';
+      }
+    } else {
+      // Failure
+      thumbnailUrl = 'https://cdn-icons-png.flaticon.com/512/3426/3426286.png';
+    }
+  }
+
+  const embed = new EmbedBuilder()
+    .setColor(DICE_COLOR)
+    .setDescription(`\`${expression}\``)
+    .addFields(...fields)
+    .setThumbnail(thumbnailUrl);
 
   return embed;
 }

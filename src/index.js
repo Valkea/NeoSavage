@@ -72,6 +72,11 @@ const commands = [
       option
         .setName('target')
         .setDescription('Target number (default 4)')
+        .setRequired(false))
+    .addIntegerOption(option =>
+      option
+        .setName('raise')
+        .setDescription('Points needed per raise (default 4)')
         .setRequired(false)),
 
   // Fight management

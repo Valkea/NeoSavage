@@ -46,7 +46,40 @@ export async function cmd_roll(interaction) {
   const modifier = interaction.options.getInteger('modifier') || 0;
 
   try {
-    // Build full expression
+    // Check if this is a Savage Worlds roll (s8, s10, s12, etc.)
+    // Pattern: optional count, 's', die size, then modifier/target/raise in any order
+    const swMatch = expression.match(/^(\d*)s(\d+)((?:[+-]\d+|t\d+|r\d+)+)?$/i);
+
+    if (swMatch) {
+      // This is a Savage Worlds roll - use the wild die system
+      const count = swMatch[1] ? parseInt(swMatch[1]) : 1;
+      const traitDie = parseInt(swMatch[2]);
+      const suffixes = swMatch[3] || '';
+
+      // Extract modifier, target number, and raise interval from suffixes (can be in any order)
+      const modMatch = suffixes.match(/([+-]\d+)/);
+      const tnMatch = suffixes.match(/t(\d+)/i);
+      const raiseMatch = suffixes.match(/r(\d+)/i);
+
+      const exprModifier = modMatch ? parseInt(modMatch[1]) : 0;
+      const targetNumber = tnMatch ? parseInt(tnMatch[1]) : 4; // Default TN=4
+      const raiseInterval = raiseMatch ? parseInt(raiseMatch[1]) : 4; // Default raise=4
+      const totalModifier = modifier + exprModifier;
+
+      // For single roll, use rich embed format
+      if (count === 1) {
+        const result = rollWithWildDie(traitDie, totalModifier);
+        result.raises = calculateRaises(result.total, targetNumber, raiseInterval);
+
+        const displayExpr = `s${traitDie}${totalModifier !== 0 ? (totalModifier > 0 ? '+' : '') + totalModifier : ''}${targetNumber !== 4 ? `t${targetNumber}` : ''}${raiseInterval !== 4 ? `r${raiseInterval}` : ''}`;
+        const embed = createWildDieEmbed(displayExpr, result, targetNumber, raiseInterval);
+        await interaction.reply({ embeds: [embed] });
+        return;
+      }
+      // For multiple rolls, fall through to R2 evaluator
+    }
+
+    // Build full expression for non-SW rolls
     let fullExpression = expression;
 
     // For acing flag, add '!' suffix if not already present
@@ -66,8 +99,33 @@ export async function cmd_roll(interaction) {
     try {
       const result = evaluateExpression(fullExpression);
       console.log(result);
-      const embed = createR2ResultEmbed(fullExpression, result);
-      await interaction.reply({ embeds: [embed] });
+
+      // Check if R2 result is a Savage Worlds roll from the evaluator
+      if (result.rolls && result.rolls[0] && result.rolls[0].trait && result.rolls[0].wild) {
+        // Single SW roll from R2 - use rich embed
+        const swResult = result.rolls[0];
+        const wildResult = {
+          total: swResult.result,
+          traitRoll: swResult.trait,
+          wildRoll: swResult.wild,
+          usedDie: swResult.usedDie,
+          modifier: 0
+        };
+
+        // Extract target number from R2 result if available
+        const targetNumber = swResult.success !== undefined ? 4 : null; // R2 calculates with TN, default 4
+        const raiseInterval = 4; // R2 doesn't support custom raise intervals yet
+        if (targetNumber) {
+          wildResult.raises = calculateRaises(wildResult.total, targetNumber, raiseInterval);
+        }
+
+        const embed = createWildDieEmbed(fullExpression, wildResult, targetNumber, raiseInterval);
+        await interaction.reply({ embeds: [embed] });
+      } else {
+        // Regular R2 result
+        const embed = createR2ResultEmbed(fullExpression, result);
+        await interaction.reply({ embeds: [embed] });
+      }
     } catch (r2Error) {
       // Fallback to basic parser for simple expressions
       if (r2Error.message.includes('Parser not generated')) {
@@ -94,28 +152,20 @@ export async function cmd_wild(interaction) {
   const traitDie = interaction.options.getInteger('trait');
   const modifier = interaction.options.getInteger('modifier') || 0;
   const targetNumber = interaction.options.getInteger('target') || 4;
+  const raiseInterval = interaction.options.getInteger('raise') || 4;
 
   try {
     const result = rollWithWildDie(traitDie, modifier);
-    result.raises = calculateRaises(result.total, targetNumber);
+    result.raises = calculateRaises(result.total, targetNumber, raiseInterval);
 
     const expression = `d${traitDie}${modifier !== 0 ? (modifier > 0 ? '+' : '') + modifier : ''}`;
-    const embed = createWildDieEmbed(expression, result);
-
-    console.log('[cmd_wild] Embed object:', JSON.stringify(embed.toJSON(), null, 2));
+    const embed = createWildDieEmbed(expression, result, targetNumber, raiseInterval);
 
     await interaction.reply({ embeds: [embed] });
   } catch (error) {
     const embed = createErrorEmbed(error.message);
     await interaction.reply({ embeds: [embed], flags: [MessageFlags.Ephemeral] });
   }
-}
-
-function formatAcingRolls(rollResult) {
-  if (rollResult.rolls.length > 1) {
-    return `[${rollResult.rolls.join('+')}]`;
-  }
-  return rollResult.total.toString();
 }
 
 /**

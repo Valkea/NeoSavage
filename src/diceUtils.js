@@ -184,12 +184,13 @@ export function rollAndKeep(count, sides, keep, acing = false) {
  * Calculate raises (Savage Worlds mechanic)
  * @param {number} roll - Total roll result
  * @param {number} targetNumber - Target number (default 4)
+ * @param {number} raiseInterval - Points needed per raise (default 4)
  * @returns {object} - {success, raises, margin}
  */
-export function calculateRaises(roll, targetNumber = 4) {
+export function calculateRaises(roll, targetNumber = 4, raiseInterval = 4) {
   const margin = roll - targetNumber;
   const success = margin >= 0;
-  const raises = success ? Math.floor(margin / 4) : 0;
+  const raises = success ? Math.floor(margin / raiseInterval) : 0;
 
   return {
     success,

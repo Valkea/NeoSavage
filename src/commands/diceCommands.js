@@ -75,28 +75,23 @@ export async function cmd_roll(interaction) {
  * Process multiple roll groups into a single combined message
  */
 async function processCombinedRollGroups(interaction, groups, acing, modifier) {
-  const results = [];
-  let overallTotal = 0;
-  
-  // Process each group and collect results
-  for (let i = 0; i < groups.length; i++) {
-    const group = groups[i];
-    
+  // Process all groups in parallel for better performance
+  const rollPromises = groups.map(async (group, index) => {
     try {
       // Check if this is a Savage Worlds expression first
       const swResult = handleSavageWorldsExpression(group, modifier);
       
       if (swResult && swResult.isSingle) {
         // Savage Worlds roll
-        results.push({
+        return {
+          index,
           expression: swResult.displayExpr,
           total: swResult.result.total,
           isWildDie: true,
           result: swResult.result,
           targetNumber: swResult.targetNumber,
           raiseInterval: swResult.raiseInterval
-        });
-        overallTotal += swResult.result.total;
+        };
       } else {
         // Build full expression for non-SW or multi-SW rolls
         let fullExpression = group;
@@ -134,35 +129,45 @@ async function processCombinedRollGroups(interaction, groups, acing, modifier) {
             wildResult.raises = calculateRaises(wildResult.total, targetNumber, raiseInterval);
           }
 
-          results.push({
+          return {
+            index,
             expression: fullExpression,
             total: wildResult.total,
             isWildDie: true,
             result: wildResult,
             targetNumber: targetNumber,
             raiseInterval: raiseInterval
-          });
-          overallTotal += wildResult.total;
+          };
         } else {
           // Regular R2 result
-          results.push({
+          return {
+            index,
             expression: fullExpression,
             total: result.value,
             isWildDie: false,
             result: result
-          });
-          overallTotal += result.value;
+          };
         }
       }
     } catch (error) {
       // If one group fails, add error to results
-      results.push({
+      return {
+        index,
         expression: group,
         total: 0,
         error: error.message
-      });
+      };
     }
-  }
+  });
+
+  // Wait for all rolls to complete in parallel
+  const rollResults = await Promise.all(rollPromises);
+  
+  // Sort results by original index to maintain order
+  const results = rollResults.sort((a, b) => a.index - b.index);
+  
+  // Calculate overall total
+  const overallTotal = results.reduce((sum, result) => sum + result.total, 0);
   
   // Create combined embed
   const embed = createCombinedRollEmbed(results, overallTotal);

@@ -74,6 +74,8 @@ export class R2EvaluatorVisitor extends R2Visitor {
     const times = parseInt(ctx.n.getText());
     const results = [];
 
+    // For better performance with large roll counts, we could batch process
+    // but for now, keep it simple and sequential to maintain compatibility
     for (let i = 0; i < times; i++) {
       const result = this.visit(ctx.e);
       results.push(result);

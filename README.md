@@ -9,6 +9,8 @@ A Discord bot for **Savage Worlds** tabletop RPG mechanics, written in JavaScrip
 - **Acing Dice**: Exploding dice (reroll and add on max value)
 - **Wild Die Rolls**: Savage Worlds signature mechanic - roll trait die + wild die, keep highest
 - **Automatic Raises**: Calculate success and raises based on target number
+- **Multi-Group Rolls**: `/roll dice:3d6 / s8 / 2d20adv` - Multiple dice groups with overall total
+- **Split Mode**: Add `/split` or `/s` to get separate messages per group
 
 ### ⚔️ Combat & Initiative
 - **Card-Based Initiative**: Deal playing cards for initiative order (Savage Worlds style)
@@ -151,6 +153,12 @@ The bot includes full support for the R2 dice expression grammar with automatic 
 - Arithmetic: `+`, `-`, `*`, `/`, `%`
 - `--flag` - Flags for special behaviors
 
+**Multi-Group Rolls**
+- `Group1 / Group2 / Group3` - Combined roll (single message with total)
+- `Group1 / Group2 / Group3 /split` - Separate messages per group
+- `Group1 / Group2 /s` - Split mode (short flag)
+- Mixed types supported: `3d6 / s8 / 2d20adv` - Regular + Savage Worlds + Advantage
+
 ## Examples
 
 ### Basic Dice Roll
@@ -177,6 +185,30 @@ The bot includes full support for the R2 dice expression grammar with automatic 
 > Wild Die: 4 = 4
 > Final Result: 13 (used trait die)
 > Success with 2 raises (TN: 4)
+```
+
+### Multi-Group Rolls (Combined)
+```
+/roll dice:3d6 / s8 / 2d20adv
+> 🎲 Multiple Roll Groups
+> Group 1: 3d6
+> Result: 12 ← [ 4, 3, 5 ]
+> 
+> Group 2: s8  
+> Trait Die: 6 ← [ 6 ]
+> Wild Die: 3 ← [ 3 ]
+> Result: 6 • used trait die
+>
+> Group 3: 2d20adv
+> Result: 17 ← [ 17, 8 ]
+>
+> Overall Total: 35
+```
+
+### Multi-Group Rolls (Split)
+```
+/roll dice:3d6 / s8 / 2d20adv /split
+> [Three separate messages, one for each group]
 ```
 
 ### Initiative

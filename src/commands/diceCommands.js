@@ -463,6 +463,17 @@ export async function cmd_roll_help(interaction) {
         inline: false
       },
       {
+        name: '📊 Multi-Group Rolls',
+        value: `\`/roll dice:3d6 / 4d8 / 3d12\` - **Combined**: Roll all groups, show total
+\`/roll dice:2d6+2 / s8t3r2+2 / 5d20!k2+3\` - **Mixed types** with total
+\`/roll dice:3d6 / 4d8 / 3d12 /split\` - **Separate messages**
+\`/roll dice:s10 / 2d8+3 /s\` - **Split mode** (short flag)
+
+**Split Flags**: \`/split\`, \`/s\`, \`/ s\`, \`/ split\`
+**Default**: Combined message with overall total`,
+        inline: false
+      },
+      {
         name: '📏 Bounded Rolls',
         value: `\`/roll dice:2d6[3:10]\` - Roll 2d6, **clamp result** between 3 and 10
 \`/roll dice:3d8[5:]\` - Roll 3d8, **minimum** result of 5

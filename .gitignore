@@ -25,3 +25,5 @@ build/
 
 # Generated ANTLR4 parser
 parser/
+.env.gitco
+OLD

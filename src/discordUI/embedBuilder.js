@@ -176,7 +176,7 @@ export function createWildDieEmbed(expression, result, targetNumber = null, rais
   if (hasModifier) {
     const baseTotal = result.usedDie === 'trait' ? result.traitRoll.total : result.wildRoll.total;
     const modifierSign = result.modifier > 0 ? '+' : '';
-    finalResultText = `**${result.total}** ← **[** ${baseTotal} ${modifierSign}${result.modifier} **]**`;
+    finalResultText = `**${result.total}** ← **[** ${baseTotal} **]** ${modifierSign}${result.modifier}`;
   }
 
   finalResultText += ` • used ${result.usedDie} die`;
@@ -259,8 +259,18 @@ export function createWildDieEmbed(expression, result, targetNumber = null, rais
  * @returns {string} Formatted dice string
  */
 function formatR2Dice(description) {
+  // Check for modifiers first (+ or - followed by number at the end)
+  const modifierMatch = description.match(/^(.+?)\s*([+-]\s*\d+)\s*$/);
+  let baseDescription = description;
+  let modifier = null;
+  
+  if (modifierMatch) {
+    baseDescription = modifierMatch[1].trim();
+    modifier = modifierMatch[2].replace(/\s/g, ''); // Remove spaces from modifier
+  }
+
   // Check if there are dropped dice (separated by |)
-  const pipeSplit = description.split('|');
+  const pipeSplit = baseDescription.split('|');
   const diceDescription = pipeSplit[0];
   const droppedDescription = pipeSplit.length > 1 ? pipeSplit[1] : null;
 
@@ -296,7 +306,7 @@ function formatR2Dice(description) {
     result = `${formatted.join(', ')}`;
   }
 
-  return { formattedDice: result, droppedDice: droppedDescription };
+  return { formattedDice: result, droppedDice: droppedDescription, modifier: modifier };
 }
 
 /**
@@ -322,8 +332,11 @@ export function createR2ResultEmbed(expression, result) {
     // Multiple rolls - format each roll individually
     const rollsValue = result.rolls.map((roll) => {
       if (roll.description) {
-        const { formattedDice, droppedDice } = formatR2Dice(roll.description);
+        const { formattedDice, droppedDice, modifier } = formatR2Dice(roll.description);
         let line = `**${roll.value}** ← **[** ${formattedDice} **]**`;
+        if (modifier) {
+          line = `**${roll.value}** ← **[** ${formattedDice} **]** ${modifier}`;
+        }
         if (droppedDice) {
           line += ` ~~*( ${droppedDice} )*~~`;
         }
@@ -351,8 +364,11 @@ export function createR2ResultEmbed(expression, result) {
     if (result.description) {
       // Has dice rolls - format as: **10** ← **[ **3, 5, 2** ]**
       // or with exploding: **21** ← **[** **( 6💥,6💥, 2 )**, 3, 4** ]**
-      const { formattedDice, droppedDice } = formatR2Dice(result.description);
+      const { formattedDice, droppedDice, modifier } = formatR2Dice(result.description);
       rollValue = `**${result.value}** ← **[** ${formattedDice} **]**`;
+      if (modifier) {
+        rollValue = `**${result.value}** ← **[** ${formattedDice} **]** ${modifier}`;
+      }
       if (droppedDice) {
         rollValue += ` ~~*( ${droppedDice} )*~~`;
       }

@@ -220,16 +220,73 @@ The bot includes full support for the R2 dice expression grammar with automatic 
 > Zephyr: 🃏 Red Joker
 ```
 
-## Bot Setup
+## Discord Bot Setup
 
-1. Create a Discord application at https://discord.com/developers/applications
-2. Create a bot user
-3. Enable the following intents:
-   - Guilds
-   - Guild Messages
-   - Message Content
-4. Invite the bot to your server with the `applications.commands` scope
-5. Copy the bot token and client ID to your `.env` file
+### 1. Create Discord Application
+
+1. Go to [Discord Developer Portal](https://discord.com/developers/applications)
+2. Click **"New Application"**
+3. Enter a name for your bot (e.g., "NeoSavage")
+4. Click **"Create"**
+
+### 2. Create Bot User
+
+1. Go to **"Bot"** tab in the left sidebar
+2. Click **"Add Bot"**
+3. Customize the bot's username and avatar if desired
+4. **Copy the bot token** - you'll need this for your `.env` file
+
+### 3. Configure Bot Permissions
+
+#### Required Intents (Bot → Privileged Gateway Intents)
+- ❌ **PRESENCE INTENT** - Leave OFF
+- ❌ **SERVER MEMBERS INTENT** - Leave OFF  
+- ✅ **MESSAGE CONTENT INTENT** - **MUST BE ENABLED** (prevents "disallowed intents" error)
+
+#### Bot Permissions (OAuth2 → URL Generator)
+**Scopes:**
+- ✅ `bot`
+- ✅ `applications.commands`
+
+**Bot Permissions:**
+- ✅ **Send Messages**
+- ✅ **Use Slash Commands** 
+- ✅ **Embed Links**
+- ✅ **Attach Files**
+- ✅ **Read Message History**
+
+### 4. Invite Bot to Server
+
+1. Go to **OAuth2 → URL Generator**
+2. Select the scopes and permissions listed above
+3. Copy the generated URL
+4. Open the URL in your browser
+5. Select your Discord server and authorize the bot
+
+### 5. Configure Environment
+
+Create a `.env` file (copy from `.env.example`):
+```env
+DISCORD_TOKEN=your_bot_token_here
+```
+
+### 6. Get Required IDs
+
+**Bot Token:** Found in Bot tab (step 2)
+
+### Troubleshooting
+
+**"Used disallowed intents" error:**
+- Ensure **MESSAGE CONTENT INTENT** is enabled in Bot settings
+- Save changes and restart the bot
+
+**Commands not appearing:**
+- Verify bot has `applications.commands` scope
+- Bot may take up to 1 hour to register global commands (it is usually way faster)
+
+**Permission errors:**
+- Ensure bot has required permissions in the channel
+- Check bot role is above other roles that might restrict permissions
 
 ## License
 

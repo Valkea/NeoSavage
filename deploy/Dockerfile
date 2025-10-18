@@ -27,6 +27,9 @@ RUN npm install --omit=dev
 COPY R2.g4 ./
 COPY *.js ./
 COPY *.json ./
+COPY commands/ ./commands/
+COPY dice/ ./dice/
+COPY discordUI/ ./discordUI/
 
 # Generate ANTLR4 parser
 RUN mkdir -p parser && \
@@ -48,6 +51,9 @@ COPY --from=builder /app/parser ./parser
 COPY --from=builder /app/*.js ./
 COPY --from=builder /app/*.json ./
 COPY --from=builder /app/package*.json ./
+COPY --from=builder /app/commands ./commands
+COPY --from=builder /app/dice ./dice
+COPY --from=builder /app/discordUI ./discordUI
 
 # Create non-root user
 RUN addgroup -g 1001 -S nodejs && \

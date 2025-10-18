@@ -9,12 +9,13 @@
  */
 
 import antlr4 from 'antlr4';
+const { InputStream, CommonTokenStream } = antlr4;
 // Parser imports - available after running npm run generate-parser
 import R2Lexer from './parser/R2Lexer.js';
 import R2Parser from './parser/R2Parser.js';
 import R2Visitor from './parser/R2Visitor.js';
 // Import dice rolling utilities from shared module
-import { rollDie, rollAcingDie } from './diceUtils.js';
+import { rollDie, rollAcingDie } from './dice/regularDice.js';
 
 /**
  * Roll result class
@@ -578,9 +579,9 @@ export class R2EvaluatorVisitor extends R2Visitor {
  */
 export function evaluateExpression(expression) {
   try {
-    const chars = new antlr4.InputStream(expression);
+    const chars = new InputStream(expression);
     const lexer = new R2Lexer(chars);
-    const tokens = new antlr4.CommonTokenStream(lexer);
+    const tokens = new CommonTokenStream(lexer);
     const parser = new R2Parser(tokens);
 
     // Build error listener for better error messages

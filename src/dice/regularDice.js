@@ -1,5 +1,5 @@
 /**
- * Dice rolling utilities for Savage Worlds and other RPG systems
+ * Regular dice rolling utilities for standard RPG dice
  */
 
 /**
@@ -92,60 +92,6 @@ export function parseDiceExpression(expression, acing = false) {
 }
 
 /**
- * Roll with Wild Die (Savage Worlds) - roll trait die and d6, keep highest
- * @param {number} traitDie - Size of the trait die (d4, d6, d8, etc.)
- * @param {number} modifier - Modifier to add to the result
- * @param {number} wildDie - Size of the wild die (default d6)
- * @returns {object} - Roll results with both dice
- */
-export function rollWithWildDie(traitDie, modifier = 0, wildDie = 6) {
-  const trait = rollAcingDie(traitDie);
-  const wild = rollAcingDie(wildDie);
-
-  const traitTotal = trait.total + modifier;
-  const wildTotal = wild.total + modifier;
-
-  const finalTotal = Math.max(traitTotal, wildTotal);
-  const usedDie = traitTotal >= wildTotal ? 'trait' : 'wild';
-
-  return {
-    total: finalTotal,
-    traitRoll: trait,
-    wildRoll: wild,
-    modifier,
-    usedDie,
-    traitTotal,
-    wildTotal
-  };
-}
-
-/**
- * Format breakdown of rolls for display
- */
-function formatBreakdown(rolls, modifier, acing) {
-  let breakdown = '';
-
-  if (acing) {
-    const parts = rolls.map(r => {
-      if (r.rolls && r.rolls.length > 1) {
-        return `[${r.rolls.join('+')}=${r.total}]`;
-      }
-      return r.total || r;
-    });
-    breakdown = parts.join(' + ');
-  } else {
-    breakdown = rolls.join(' + ');
-  }
-
-  if (modifier !== 0) {
-    const sign = modifier > 0 ? '+' : '';
-    breakdown += ` ${sign}${modifier}`;
-  }
-
-  return breakdown;
-}
-
-/**
  * Roll multiple dice and keep the highest N
  * @param {number} count - Number of dice to roll
  * @param {number} sides - Die size
@@ -181,23 +127,27 @@ export function rollAndKeep(count, sides, keep, acing = false) {
 }
 
 /**
- * Calculate raises (Savage Worlds mechanic)
- * @param {number} roll - Total roll result
- * @param {number} targetNumber - Target number (default 4)
- * @param {number} raiseInterval - Points needed per raise (default 4)
- * @returns {object} - {success, raises, margin}
+ * Format breakdown of rolls for display
  */
-export function calculateRaises(roll, targetNumber = 4, raiseInterval = 4) {
-  const margin = roll - targetNumber;
-  const success = margin >= 0;
-  const raises = success ? Math.floor(margin / raiseInterval) : 0;
+function formatBreakdown(rolls, modifier, acing) {
+  let breakdown = '';
 
-  return {
-    success,
-    raises,
-    margin,
-    description: success
-      ? (raises > 0 ? `Success with ${raises} raise${raises > 1 ? 's' : ''}` : 'Success')
-      : `Failed by ${Math.abs(margin)}`
-  };
+  if (acing) {
+    const parts = rolls.map(r => {
+      if (r.rolls && r.rolls.length > 1) {
+        return `[${r.rolls.join('+')}=${r.total}]`;
+      }
+      return r.total || r;
+    });
+    breakdown = parts.join(' + ');
+  } else {
+    breakdown = rolls.join(' + ');
+  }
+
+  if (modifier !== 0) {
+    const sign = modifier > 0 ? '+' : '';
+    breakdown += ` ${sign}${modifier}`;
+  }
+
+  return breakdown;
 }

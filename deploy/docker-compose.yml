@@ -1,8 +1,8 @@
 services:
   neosavage:
     build:
-      context: .
-      dockerfile: Dockerfile
+      context: ../src
+      dockerfile: ../deploy/Dockerfile
     image: neosavage:latest
     container_name: neosavage
     restart: unless-stopped

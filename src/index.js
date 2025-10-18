@@ -9,14 +9,8 @@ import {
   cmd_fight_end,
   cmd_initiative_deal,
   cmd_initiative_show,
-  cmd_initiative_round,
-  cmd_benny_grant,
-  cmd_benny_spend,
-  cmd_benny_list,
-  cmd_benny_clear,
-  cmd_state,
-  cmd_help
-} from './commands.js';
+  cmd_initiative_round
+} from './commands/diceCommands.js';
 
 // Initialize Discord client
 const client = new Client({
@@ -129,84 +123,11 @@ const commands = [
         .setName('round')
         .setDescription('Start a new round')),
 
-  // Benny management
-  new SlashCommandBuilder()
-    .setName('benny')
-    .setDescription('Benny management')
-    .addSubcommand(subcommand =>
-      subcommand
-        .setName('grant')
-        .setDescription('Grant bennies to a character')
-        .addStringOption(option =>
-          option
-            .setName('character')
-            .setDescription('Character name')
-            .setRequired(true))
-        .addIntegerOption(option =>
-          option
-            .setName('count')
-            .setDescription('Number of bennies to grant')
-            .setRequired(false)))
-    .addSubcommand(subcommand =>
-      subcommand
-        .setName('spend')
-        .setDescription('Spend a benny')
-        .addStringOption(option =>
-          option
-            .setName('character')
-            .setDescription('Character name')
-            .setRequired(true)))
-    .addSubcommand(subcommand =>
-      subcommand
-        .setName('list')
-        .setDescription('List all bennies'))
-    .addSubcommand(subcommand =>
-      subcommand
-        .setName('clear')
-        .setDescription('Clear bennies')
-        .addStringOption(option =>
-          option
-            .setName('character')
-            .setDescription('Character name (leave empty to clear all)')
-            .setRequired(false))),
-
-  // State management
-  new SlashCommandBuilder()
-    .setName('state')
-    .setDescription('Manage character states')
-    .addStringOption(option =>
-      option
-        .setName('character')
-        .setDescription('Character name')
-        .setRequired(true))
-    .addStringOption(option =>
-      option
-        .setName('action')
-        .setDescription('Action to perform')
-        .setRequired(true)
-        .addChoices(
-          { name: 'Add', value: 'add' },
-          { name: 'Remove', value: 'remove' },
-          { name: 'Clear', value: 'clear' },
-          { name: 'Show', value: 'show' }))
-    .addStringOption(option =>
-      option
-        .setName('state')
-        .setDescription('State name (Shaken, Stunned, Vulnerable, etc.)')
-        .setRequired(false)),
 
   // Help command
   new SlashCommandBuilder()
     .setName('help')
-    .setDescription('Show help and command list')
-    .addSubcommand(subcommand =>
-      subcommand
-        .setName('commands')
-        .setDescription('Show bot commands'))
-    .addSubcommand(subcommand =>
-      subcommand
-        .setName('rolls')
-        .setDescription('Show dice rolling guide')),
+    .setDescription('Show dice rolling guide'),
 ];
 
 // Register commands when bot is ready
@@ -261,40 +182,10 @@ client.on(Events.InteractionCreate, async (interaction) => {
       }
     }
 
-    // Benny management
-    else if (commandName === 'benny') {
-      const subcommand = interaction.options.getSubcommand();
-      if (subcommand === 'grant') {
-        await cmd_benny_grant(interaction);
-      } else if (subcommand === 'spend') {
-        await cmd_benny_spend(interaction);
-      } else if (subcommand === 'list') {
-        await cmd_benny_list(interaction);
-      } else if (subcommand === 'clear') {
-        await cmd_benny_clear(interaction);
-      }
-    }
-
-    // State management
-    else if (commandName === 'state') {
-      await cmd_state(interaction);
-    }
 
     // Help
     else if (commandName === 'help') {
-      const subcommand = interaction.options.getSubcommand(false);
-
-      if (subcommand === 'rolls') {
-        await cmd_roll_help(interaction);
-      } else if (subcommand === 'commands') {
-        await cmd_help(interaction);
-      } else {
-        // Default help - show brief overview
-        await interaction.reply({
-          content: `# 🎲 Savagebot Help\n\nUse \`/help\` with subcommands to access detailed help:\n\n📋 **Bot Commands** - \`/help commands\`\n🎲 **Dice Rolling Guide** - \`/help rolls\`\n\nFor quick dice rolls, just use \`/roll dice:2d6\`!`,
-          flags: [MessageFlags.Ephemeral]
-        });
-      }
+      await cmd_roll_help(interaction);
     }
 
   } catch (error) {

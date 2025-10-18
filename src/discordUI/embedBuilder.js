@@ -397,3 +397,91 @@ export function createErrorEmbed(message) {
     .setColor(0xFF0000) // Red color
     .setDescription(`❌ **Error**\n${message}`);
 }
+
+/**
+ * Create embed for combined multiple roll groups
+ * @param {Array} results - Array of roll results with expression, total, and other data
+ * @param {number} overallTotal - Sum of all group totals
+ * @returns {EmbedBuilder}
+ */
+export function createCombinedRollEmbed(results, overallTotal) {
+  const diceIcon = getRandomDiceIcon();
+
+  const embed = new EmbedBuilder()
+    .setColor(DICE_COLOR)
+    .setTitle('🎲 Multiple Roll Groups')
+    .setThumbnail(diceIcon.url)
+    .setFooter({
+      text: diceIcon.footer,
+      iconURL: diceIcon.url
+    });
+
+  // Create fields for each roll group
+  const fields = [];
+  
+  results.forEach((result, index) => {
+    const groupNumber = index + 1;
+    let fieldValue;
+    
+    if (result.error) {
+      fieldValue = `❌ Error: ${result.error}`;
+    } else if (result.isWildDie) {
+      // Format wild die result
+      const traitRoll = formatRollValue(result.result.traitRoll, true);
+      const wildRoll = formatRollValue(result.result.wildRoll, true);
+      
+      fieldValue = `**Trait Die:** ${traitRoll}\n`;
+      fieldValue += `**Wild Die:** ${wildRoll}\n`;
+      fieldValue += `**Result:** **${result.total}** • used ${result.result.usedDie} die`;
+      
+      // Add success/failure info if available
+      if (result.result.raises !== undefined) {
+        if (result.result.raises.success) {
+          if (result.result.raises.raises > 0) {
+            const stars = '⭐'.repeat(result.result.raises.raises);
+            const raiseWord = result.result.raises.raises === 1 ? 'raise' : 'raises';
+            fieldValue += `\n✅ Success with ${result.result.raises.raises} ${stars} ${raiseWord}`;
+          } else {
+            fieldValue += '\n✅ Success';
+          }
+        } else {
+          fieldValue += `\n💀 ${result.result.raises.description}`;
+        }
+        
+        if (result.targetNumber !== null) {
+          fieldValue += ` (🎯 ${result.targetNumber})`;
+        }
+      }
+    } else {
+      // Format regular R2 result
+      if (result.result.description) {
+        const { formattedDice, droppedDice, modifier } = formatR2Dice(result.result.description);
+        fieldValue = `**${result.total}** ← **[** ${formattedDice} **]**`;
+        if (modifier) {
+          fieldValue = `**${result.total}** ← **[** ${formattedDice} **]** ${modifier}`;
+        }
+        if (droppedDice) {
+          fieldValue += ` ~~*( ${droppedDice} )*~~`;
+        }
+      } else {
+        fieldValue = `**${result.total}**`;
+      }
+    }
+    
+    fields.push({
+      name: `__Group ${groupNumber}:__ \`${result.expression}\``,
+      value: fieldValue,
+      inline: false
+    });
+  });
+
+  // Add overall total field
+  fields.push({
+    name: '__Overall Total__',
+    value: `🎯 **${overallTotal}**`,
+    inline: false
+  });
+
+  embed.addFields(...fields);
+  return embed;
+}

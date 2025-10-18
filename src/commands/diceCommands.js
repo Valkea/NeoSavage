@@ -9,7 +9,8 @@ import { InitiativeTracker } from '../dice/initiativeSystem.js';
 import {
   createWildDieEmbed,
   createR2ResultEmbed,
-  createErrorEmbed
+  createErrorEmbed,
+  createCombinedRollEmbed
 } from '../discordUI/embedBuilder.js';
 
 // Game state managers
@@ -32,64 +33,214 @@ export async function cmd_roll(interaction) {
   const modifier = interaction.options.getInteger('modifier') || 0;
 
   try {
-    // Check if this is a Savage Worlds expression first
-    const swResult = handleSavageWorldsExpression(expression, modifier);
+    // Check for split flags at the end: /split, /s, / s, / split
+    const splitPattern = /\/\s*(split|s)\s*$/i;
+    const hasSplitFlag = splitPattern.test(expression);
+    const cleanExpression = expression.replace(splitPattern, '').trim();
     
-    if (swResult && swResult.isSingle) {
-      // Single Savage Worlds roll - use wild die embed
-      const embed = createWildDieEmbed(swResult.displayExpr, swResult.result, swResult.targetNumber, swResult.raiseInterval);
-      await interaction.reply({ embeds: [embed] });
+    // Check if expression contains multiple groups separated by "/"
+    const groups = cleanExpression.split('/').map(group => group.trim()).filter(group => group.length > 0);
+    
+    if (groups.length > 1) {
+      if (hasSplitFlag) {
+        // Split mode - send separate messages
+        for (let i = 0; i < groups.length; i++) {
+          const group = groups[i];
+          
+          // Process each group individually
+          await processRollGroup(interaction, group, acing, modifier, i === 0);
+          
+          // Add small delay between messages to ensure ordering
+          if (i < groups.length - 1) {
+            await new Promise(resolve => setTimeout(resolve, 100));
+          }
+        }
+      } else {
+        // Combined mode - merge into single message with total
+        await processCombinedRollGroups(interaction, groups, acing, modifier);
+      }
       return;
     }
-
-    // Build full expression for non-SW or multi-SW rolls
-    let fullExpression = expression;
-
-    // For acing flag, add '!' suffix if not already present
-    if (acing && !expression.includes('!')) {
-      if (/^\d*d\d+$/.test(expression.toLowerCase())) {
-        fullExpression = expression + '!';
-      }
-    }
-
-    // Add modifier if specified (only for non-SW expressions)
-    if (modifier !== 0 && !swResult) {
-      fullExpression += (modifier > 0 ? '+' : '') + modifier;
-    }
-
-    // Use ANTLR4 parser for complex expressions
-    const result = evaluateExpression(fullExpression);
     
-    // Check if R2 result is a Savage Worlds roll from the evaluator
-    if (result.rolls && result.rolls[0] && result.rolls[0].trait && result.rolls[0].wild) {
-      // Single SW roll from R2 - use wild die embed
-      const swR2Result = result.rolls[0];
-      const wildResult = {
-        total: swR2Result.result,
-        traitRoll: swR2Result.trait,
-        wildRoll: swR2Result.wild,
-        usedDie: swR2Result.usedDie,
-        modifier: 0
-      };
-
-      // Extract target number from R2 result if available
-      const targetNumber = swR2Result.success !== undefined ? 4 : null;
-      const raiseInterval = 4;
-      if (targetNumber) {
-        wildResult.raises = calculateRaises(wildResult.total, targetNumber, raiseInterval);
-      }
-
-      const embed = createWildDieEmbed(fullExpression, wildResult, targetNumber, raiseInterval);
-      await interaction.reply({ embeds: [embed] });
-    } else {
-      // Regular R2 result - use general embed
-      const embed = createR2ResultEmbed(fullExpression, result);
-      await interaction.reply({ embeds: [embed] });
-    }
+    // Single group - process normally
+    await processRollGroup(interaction, cleanExpression, acing, modifier, true);
 
   } catch (error) {
     const embed = createErrorEmbed(error.message);
     await interaction.reply({ embeds: [embed], flags: [MessageFlags.Ephemeral] });
+  }
+}
+
+/**
+ * Process multiple roll groups into a single combined message
+ */
+async function processCombinedRollGroups(interaction, groups, acing, modifier) {
+  const results = [];
+  let overallTotal = 0;
+  
+  // Process each group and collect results
+  for (let i = 0; i < groups.length; i++) {
+    const group = groups[i];
+    
+    try {
+      // Check if this is a Savage Worlds expression first
+      const swResult = handleSavageWorldsExpression(group, modifier);
+      
+      if (swResult && swResult.isSingle) {
+        // Savage Worlds roll
+        results.push({
+          expression: swResult.displayExpr,
+          total: swResult.result.total,
+          isWildDie: true,
+          result: swResult.result,
+          targetNumber: swResult.targetNumber,
+          raiseInterval: swResult.raiseInterval
+        });
+        overallTotal += swResult.result.total;
+      } else {
+        // Build full expression for non-SW or multi-SW rolls
+        let fullExpression = group;
+
+        // For acing flag, add '!' suffix if not already present
+        if (acing && !group.includes('!')) {
+          if (/^\d*d\d+$/.test(group.toLowerCase())) {
+            fullExpression = group + '!';
+          }
+        }
+
+        // Add modifier if specified (only for non-SW expressions)
+        if (modifier !== 0 && !swResult) {
+          fullExpression += (modifier > 0 ? '+' : '') + modifier;
+        }
+
+        // Use ANTLR4 parser for complex expressions
+        const result = evaluateExpression(fullExpression);
+        
+        // Check if R2 result is a Savage Worlds roll from the evaluator
+        if (result.rolls && result.rolls[0] && result.rolls[0].trait && result.rolls[0].wild) {
+          // Single SW roll from R2
+          const swR2Result = result.rolls[0];
+          const wildResult = {
+            total: swR2Result.result,
+            traitRoll: swR2Result.trait,
+            wildRoll: swR2Result.wild,
+            usedDie: swR2Result.usedDie,
+            modifier: 0
+          };
+
+          const targetNumber = swR2Result.success !== undefined ? 4 : null;
+          const raiseInterval = 4;
+          if (targetNumber) {
+            wildResult.raises = calculateRaises(wildResult.total, targetNumber, raiseInterval);
+          }
+
+          results.push({
+            expression: fullExpression,
+            total: wildResult.total,
+            isWildDie: true,
+            result: wildResult,
+            targetNumber: targetNumber,
+            raiseInterval: raiseInterval
+          });
+          overallTotal += wildResult.total;
+        } else {
+          // Regular R2 result
+          results.push({
+            expression: fullExpression,
+            total: result.value,
+            isWildDie: false,
+            result: result
+          });
+          overallTotal += result.value;
+        }
+      }
+    } catch (error) {
+      // If one group fails, add error to results
+      results.push({
+        expression: group,
+        total: 0,
+        error: error.message
+      });
+    }
+  }
+  
+  // Create combined embed
+  const embed = createCombinedRollEmbed(results, overallTotal);
+  await interaction.reply({ embeds: [embed] });
+}
+
+/**
+ * Process a single roll group
+ */
+async function processRollGroup(interaction, expression, acing, modifier, isFirst) {
+  // Check if this is a Savage Worlds expression first
+  const swResult = handleSavageWorldsExpression(expression, modifier);
+  
+  if (swResult && swResult.isSingle) {
+    // Single Savage Worlds roll - use wild die embed
+    const embed = createWildDieEmbed(swResult.displayExpr, swResult.result, swResult.targetNumber, swResult.raiseInterval);
+    
+    if (isFirst) {
+      await interaction.reply({ embeds: [embed] });
+    } else {
+      await interaction.followUp({ embeds: [embed] });
+    }
+    return;
+  }
+
+  // Build full expression for non-SW or multi-SW rolls
+  let fullExpression = expression;
+
+  // For acing flag, add '!' suffix if not already present
+  if (acing && !expression.includes('!')) {
+    if (/^\d*d\d+$/.test(expression.toLowerCase())) {
+      fullExpression = expression + '!';
+    }
+  }
+
+  // Add modifier if specified (only for non-SW expressions)
+  if (modifier !== 0 && !swResult) {
+    fullExpression += (modifier > 0 ? '+' : '') + modifier;
+  }
+
+  // Use ANTLR4 parser for complex expressions
+  const result = evaluateExpression(fullExpression);
+  
+  // Check if R2 result is a Savage Worlds roll from the evaluator
+  if (result.rolls && result.rolls[0] && result.rolls[0].trait && result.rolls[0].wild) {
+    // Single SW roll from R2 - use wild die embed
+    const swR2Result = result.rolls[0];
+    const wildResult = {
+      total: swR2Result.result,
+      traitRoll: swR2Result.trait,
+      wildRoll: swR2Result.wild,
+      usedDie: swR2Result.usedDie,
+      modifier: 0
+    };
+
+    // Extract target number from R2 result if available
+    const targetNumber = swR2Result.success !== undefined ? 4 : null;
+    const raiseInterval = 4;
+    if (targetNumber) {
+      wildResult.raises = calculateRaises(wildResult.total, targetNumber, raiseInterval);
+    }
+
+    const embed = createWildDieEmbed(fullExpression, wildResult, targetNumber, raiseInterval);
+    
+    if (isFirst) {
+      await interaction.reply({ embeds: [embed] });
+    } else {
+      await interaction.followUp({ embeds: [embed] });
+    }
+  } else {
+    // Regular R2 result - use general embed
+    const embed = createR2ResultEmbed(fullExpression, result);
+    
+    if (isFirst) {
+      await interaction.reply({ embeds: [embed] });
+    } else {
+      await interaction.followUp({ embeds: [embed] });
+    }
   }
 }
 

@@ -151,16 +151,16 @@ function formatRaises(raises, targetNumber, raiseInterval) {
     if (raises.raises > 0) {
       const stars = '⭐'.repeat(raises.raises);
       const raiseWord = raises.raises === 1 ? 'raise' : 'raises';
-      text = `\n\n✅ Success with ${raises.raises} ${stars} ${raiseWord}`;
+      text = `\n✅ Success with ${raises.raises} ${stars} ${raiseWord}`;
     } else {
-      text = '\n\n✅ Success';
+      text = '\n✅ Success';
     }
   } else {
-    text = `\n\n💀 Failure by ${Math.abs(raises.margin)}`;
+    text = `\n💀 Failure by ${Math.abs(raises.margin)}`;
   }
 
   if (targetNumber !== null) {
-    text += ` (🎯 ${targetNumber} | 🪜 ${raiseInterval})`;
+    text += ` (🎯 ${targetNumber} | 🪜 ${raiseInterval})\n`;
   }
   return text;
 }

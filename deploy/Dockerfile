@@ -1,19 +1,6 @@
 # Multi-stage build for NeoSavage JS
 FROM node:20-alpine AS builder
 
-# Install Java and ANTLR4 dependencies
-RUN apk add --no-cache \
-    openjdk11-jre \
-    curl \
-    bash
-
-# Download ANTLR4 JAR and create executable wrapper
-RUN mkdir -p /usr/local/lib && \
-    curl -o /usr/local/lib/antlr-4.13.1-complete.jar \
-    https://www.antlr.org/download/antlr-4.13.1-complete.jar && \
-    printf '#!/bin/sh\nexec java -jar /usr/local/lib/antlr-4.13.1-complete.jar "$@"\n' > /usr/local/bin/antlr4 && \
-    chmod +x /usr/local/bin/antlr4
-
 # Set working directory
 WORKDIR /app
 
@@ -23,17 +10,14 @@ COPY package*.json ./
 # Install dependencies
 RUN npm install --omit=dev
 
-# Copy grammar and source files
+# Copy source files including pre-generated parser
 COPY R2.g4 ./
 COPY *.js ./
 COPY *.json ./
 COPY commands/ ./commands/
 COPY dice/ ./dice/
 COPY discordUI/ ./discordUI/
-
-# Generate ANTLR4 parser
-RUN mkdir -p parser && \
-    /usr/local/bin/antlr4 -Dlanguage=JavaScript -visitor R2.g4 -o ./parser
+COPY parser/ ./parser/
 
 # Production stage
 FROM node:20-alpine

@@ -39,9 +39,9 @@ The easiest way to run the bot with all dependencies pre-installed:
 ```bash
 # 1. Clone the repository
 git clone <repository-url>
-cd src
 
-# 2. Create .env file
+# 2. Create .env file in the deploy directory
+cd deploy
 cp .env.example .env
 # Edit .env with your Discord bot token
 
@@ -54,6 +54,8 @@ docker-compose logs -f
 # Stop the bot
 docker-compose down
 ```
+
+**Note**: The Docker build uses the pre-generated parser files from `src/parser/` to ensure compatibility with the antlr4 runtime version (4.9.3). If you need to regenerate the parser, do so locally with ANTLR 4.9.2 before building the Docker image.
 
 ### Option 2: Manual Installation
 
@@ -71,6 +73,8 @@ docker-compose down
    # Generate the parser
    npm run generate-parser
    ```
+
+   **Important**: The project uses `antlr4` runtime version **4.9.3** to match the parser generator (ANTLR 4.9.2). If you regenerate the parser with a different ANTLR version, you may need to adjust the runtime dependency in `src/package.json` accordingly, or manually update the generated parser files to use the correct namespace imports (`antlr4.atn.ATNDeserializer` and `antlr4.dfa.DFA`).
 
    See `SETUP_PARSER.md` for detailed parser setup instructions.
 
@@ -288,6 +292,61 @@ DISCORD_TOKEN=your_bot_token_here
 **Permission errors:**
 - Ensure bot has required permissions in the channel
 - Check bot role is above other roles that might restrict permissions
+
+**ANTLR Parser errors (`ATNDeserializer is not a constructor`):**
+- This occurs when the ANTLR runtime version doesn't match the parser generator version
+- **Solution 1** (Recommended): The `antlr4` runtime is set to version 4.9.3 in `src/package.json`. Run `npm install` in the `src` directory to ensure the correct version is installed.
+- **Solution 2**: If you regenerated the parser with a different ANTLR version, update the `antlr4` dependency in `src/package.json` to match your ANTLR generator version.
+- **Solution 3**: Manually fix the generated parser files to use the correct namespace:
+  - In `src/parser/R2Parser.js`, change `new antlr4.ATNDeserializer()` to `new antlr4.atn.ATNDeserializer()`
+  - In `src/parser/R2Parser.js`, change `new antlr4.DFA(` to `new antlr4.dfa.DFA(`
+
+## Running Tests
+
+The project includes comprehensive test suites for dice expression parsing and evaluation.
+
+### Run All Tests
+```bash
+# From the project root
+node tests/run-all-tests.js
+```
+
+This will execute all test suites and provide a detailed summary with:
+- Individual test suite results
+- Pass/fail counts
+- Execution time per suite
+- Overall test summary
+
+### Test Suites Included
+- **Normalize Expression Tests**: Tests for expression normalization and modifier reordering
+- **Parser Integration Tests**: Tests for parser with normalized expressions
+
+### Example Output
+```
+🎲 Dice Expression Test Suite
+Starting comprehensive test execution...
+
+================================================================================
+Running: Normalize Expression Tests
+Tests for expression normalization and modifier reordering
+================================================================================
+
+✓ Normalize Expression Tests passed in 0.45s
+
+================================================================================
+OVERALL TEST SUMMARY
+================================================================================
+✓ Normalize Expression Tests (0.45s)
+✓ Parser Integration Tests (0.52s)
+================================================================================
+Total Suites: 2
+Passed: 2
+Failed: 0
+Total Duration: 0.98s
+================================================================================
+
+✨ All tests passed!
+```
 
 ## License
 

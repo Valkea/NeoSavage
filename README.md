@@ -133,15 +133,10 @@ The bot includes full support for the R2 dice expression grammar with automatic 
 - `pX` - Sword World power roll
 
 **Advanced Features**
-- `X--Y` - Gygax range roll (e.g., `1--100`)
-- `NxExpression` - Batch roll (e.g., `5x2d6`)
-- `@var := Expression` - Variable assignment
 - `Expression[min:max]` - Bound result
-- Arithmetic: `+`, `-`, `*`, `/`, `%`
-- `--flag` - Flags for special behaviors
-
-**Repeat Expressions**
 - `NxExpression` - Batch roll (e.g., `5x2d6`, `3xs8t4`)
+- Arithmetic: `+`, `-`, `*`, `/`, `%` (not tested and might have difficulties with the modifiers reordering)
+- `X--Y` - Gygax range roll (e.g., `1--100`)
 
 ## Examples
 

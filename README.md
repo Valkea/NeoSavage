@@ -312,7 +312,7 @@ Total Duration: 0.98s
 
 ## License
 
-MIT
+[MIT](LICENSE)
 
 ## Credits
 

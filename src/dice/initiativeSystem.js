@@ -9,10 +9,11 @@ const SUIT_ORDER = { '♠️ Spades': 0, '♥️ Hearts': 1, '♦️ Diamonds': 
 
 /**
  * Create a standard deck of playing cards
+ * Internal helper - not exported, used by InitiativeTracker
  * @param {boolean} includeJokers - Include jokers in the deck
  * @returns {Array} - Deck of cards
  */
-export function createDeck(includeJokers = true) {
+function createDeck(includeJokers = true) {
   const deck = [];
 
   // Add standard cards
@@ -50,10 +51,11 @@ export function createDeck(includeJokers = true) {
 
 /**
  * Get numeric value for a card rank
+ * Internal helper - not exported, used by createDeck
  * @param {string} rank - Card rank
  * @returns {number} - Numeric value
  */
-export function getRankValue(rank) {
+function getRankValue(rank) {
   const values = {
     '2': 2, '3': 3, '4': 4, '5': 5, '6': 6, '7': 7, '8': 8, '9': 9, '10': 10,
     'J': 11, 'Q': 12, 'K': 13, 'A': 14
@@ -63,10 +65,11 @@ export function getRankValue(rank) {
 
 /**
  * Shuffle a deck of cards using Fisher-Yates algorithm
+ * Internal helper - not exported, used by InitiativeTracker
  * @param {Array} deck - Deck to shuffle
  * @returns {Array} - Shuffled deck
  */
-export function shuffleDeck(deck) {
+function shuffleDeck(deck) {
   const shuffled = [...deck];
   for (let i = shuffled.length - 1; i > 0; i--) {
     const j = Math.floor(Math.random() * (i + 1));
@@ -78,11 +81,12 @@ export function shuffleDeck(deck) {
 /**
  * Compare two cards for initiative ordering
  * Higher values go first, with suit as tiebreaker (Spades > Hearts > Diamonds > Clubs)
+ * Internal helper - not exported, used by InitiativeTracker
  * @param {object} cardA - First card
  * @param {object} cardB - Second card
  * @returns {number} - Comparison result
  */
-export function compareCards(cardA, cardB) {
+function compareCards(cardA, cardB) {
   // Jokers always go first
   if (cardA.isJoker && !cardB.isJoker) return -1;
   if (!cardA.isJoker && cardB.isJoker) return 1;

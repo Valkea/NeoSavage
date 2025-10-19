@@ -33,17 +33,6 @@ export class RollResult {
 /**
  * Generic dice roll result (2d6, 3d8!, 4d6k3, etc.)
  */
-export class NestedRollResult extends RollResult {
-  constructor(value, dice, exploded = false) {
-    super(value);
-    this.rollType = 'nested';
-    this.exploded = exploded;
-    this.dice = dice;              // Array of nested die structures
-  }
-}
-/**
- * Generic dice roll result (2d6, 3d8!, 4d6k3, etc.)
- */
 export class GenericRollResult extends RollResult {
   constructor(value, dice, modifier = null, droppedDice = [], keepOperation = null) {
     super(value);
@@ -117,8 +106,9 @@ export class SuccessFailRollResult extends RollResult {
 /**
  * R2 Expression Evaluator Visitor
  * Implements the visitor pattern for evaluating R2 dice expressions
+ * Internal class - not exported, used by evaluateExpression
  */
-export class R2EvaluatorVisitor extends R2Visitor {
+class R2EvaluatorVisitor extends R2Visitor {
   constructor() {
     super();
     this.variables = new Map(); // Variable storage

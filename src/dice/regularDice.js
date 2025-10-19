@@ -100,41 +100,6 @@ export function parseDiceExpression(expression, acing = false) {
 }
 
 /**
- * Roll multiple dice and keep the highest N
- * @param {number} count - Number of dice to roll
- * @param {number} sides - Die size
- * @param {number} keep - Number of highest to keep
- * @param {boolean} acing - Whether to use acing
- * @returns {object} - Roll results
- */
-export function rollAndKeep(count, sides, keep, acing = false) {
-  const rolls = [];
-
-  for (let i = 0; i < count; i++) {
-    if (acing) {
-      rolls.push(rollAcingDie(sides));
-    } else {
-      rolls.push({ total: rollDie(sides), rolls: [rollDie(sides)] });
-    }
-  }
-
-  // Sort by total descending
-  rolls.sort((a, b) => b.total - a.total);
-
-  const kept = rolls.slice(0, keep);
-  const dropped = rolls.slice(keep);
-
-  const total = kept.reduce((sum, r) => sum + r.total, 0);
-
-  return {
-    total,
-    kept,
-    dropped,
-    allRolls: rolls
-  };
-}
-
-/**
  * Format breakdown of rolls for display
  */
 function formatBreakdown(rolls, modifier, acing) {

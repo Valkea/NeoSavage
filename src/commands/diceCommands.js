@@ -14,6 +14,51 @@ import {
 } from '../discordUI/embedBuilder.js';
 
 //**************************************************
+// Helper Functions
+//**************************************************
+
+/**
+ * Parse roll modifiers from expression
+ * @param {string} expression - Dice expression
+ * @returns {Object} Object with targetNumber, raiseInterval, and modifier
+ */
+function parseRollModifiers(expression) {
+  const targetMatch = expression.match(/t(\d+)/i);
+  const raiseMatch = expression.match(/r(\d+)/i);
+  const modifierMatch = expression.match(/([+-]\d+)/);
+
+  return {
+    targetNumber: targetMatch ? parseInt(targetMatch[1]) : null,
+    raiseInterval: raiseMatch ? parseInt(raiseMatch[1]) : null,
+    modifier: modifierMatch ? parseInt(modifierMatch[1]) : 0
+  };
+}
+
+/**
+ * Format edge text (full description)
+ * @param {Object} edges - Edges object
+ * @returns {string} Formatted edge text
+ */
+function formatEdgeText(edges) {
+  if (edges.improved_level_headed) return ' (Improved Level Headed)';
+  if (edges.level_headed) return ' (Level Headed)';
+  if (edges.quick) return ' (Quick)';
+  return '';
+}
+
+/**
+ * Format edge abbreviation
+ * @param {Object} edges - Edges object
+ * @returns {string} Abbreviated edge text
+ */
+function formatEdgeAbbrev(edges) {
+  if (edges.improvedLevelHeaded) return ' (ILH)';
+  if (edges.levelHeaded) return ' (LH)';
+  if (edges.quick) return ' (Q)';
+  return '';
+}
+
+//**************************************************
 // Rolls / Wild
 //**************************************************
 
@@ -22,13 +67,7 @@ import {
  */
 function evaluateSavageExpression(expression, result) {
   // Extract target/raise info from the expression
-  const targetMatch = expression.match(/t(\d+)/i);
-  const raiseMatch = expression.match(/r(\d+)/i);
-  const modifierMatch = expression.match(/([+-]\d+)/);
-
-  const targetNumber = targetMatch ? parseInt(targetMatch[1]) : null;
-  const raiseInterval = raiseMatch ? parseInt(raiseMatch[1]) : null;
-  const modifier = modifierMatch ? parseInt(modifierMatch[1]) : 0;
+  const { targetNumber, raiseInterval, modifier } = parseRollModifiers(expression);
 
   // Check if result.rolls is an array (multiple rolls) or object (single roll)
   const swRollData = Array.isArray(result.rolls) ? result.rolls[0] : result.rolls;
@@ -271,11 +310,7 @@ export async function cmd_initiative_deal(interaction) {
       color: 0x0099ff,
       title: '🎴 Initiative Cards Dealt',
       description: results.map(r => {
-        let edgeText = '';
-        if (r.edges.improvedLevelHeaded) edgeText = ' (Improved Level Headed)';
-        else if (r.edges.levelHeaded) edgeText = ' (Level Headed)';
-        else if (r.edges.quick) edgeText = ' (Quick)';
-
+        const edgeText = formatEdgeText(r.edges);
         let cardText = `**${r.name}${edgeText}:** ${r.card.display}`;
 
         if (r.droppedCards.length > 0) {
@@ -321,11 +356,7 @@ export async function cmd_initiative_show(interaction) {
     color: 0x00ff00,
     title: `⚔️ Initiative Order - Round ${tracker.getCurrentRound()}`,
     description: order.map((char, index) => {
-      let edgeText = '';
-      if (char.edges.improvedLevelHeaded) edgeText = ' (ILH)';
-      else if (char.edges.levelHeaded) edgeText = ' (LH)';
-      else if (char.edges.quick) edgeText = ' (Q)';
-
+      const edgeText = formatEdgeAbbrev(char.edges);
       return `**${index + 1}.** ${char.name}${edgeText} - ${char.card.display}`;
     }).join('\n')
   };

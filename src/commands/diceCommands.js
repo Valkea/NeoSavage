@@ -18,6 +18,76 @@ import {
 //**************************************************
 
 /**
+ * Normalize expression by reordering modifiers to parser-friendly format
+ * Handles: s10+5r2t5 -> s10r2t5+5, 3d6!+5k2 -> 3d6!k2+5, 3xs8+2r3t5 -> 3xs8r3t5+2
+ * @param {string} expression - Original dice expression
+ * @returns {string} Normalized expression
+ */
+function normalizeExpression(expression) {
+  // Check for Nx prefix (multiple rolls)
+  const repeatMatch = expression.match(/^(\d+[xX])(.*)/);
+  let repeatPrefix = '';
+  let rollExpression = expression;
+
+  if (repeatMatch) {
+    repeatPrefix = repeatMatch[1]; // e.g., "3x"
+    rollExpression = repeatMatch[2]; // rest of expression after "3x"
+  }
+
+  // For Savage Worlds rolls (s notation)
+  // Extract: base roll, modifiers (+/-), target (t), raise (r)
+  const swMatch = rollExpression.match(/^(\d*[sS]\d+(?:[wW]\d+)?)(.*)/);
+  if (swMatch) {
+    const baseRoll = swMatch[1]; // e.g., "s10" or "2s8w6"
+    const rest = swMatch[2]; // everything after base roll
+
+    // Extract all modifier types from rest
+    const targetMatch = rest.match(/[tT](\d+)/);
+    const raiseMatch = rest.match(/[rR](\d+)/);
+    const modifierMatch = rest.match(/([+-]\d+)/);
+
+    // Rebuild in correct order: repeat + base + target + raise + modifier
+    let normalized = repeatPrefix + baseRoll;
+    if (targetMatch) normalized += 't' + targetMatch[1];
+    if (raiseMatch) normalized += 'r' + raiseMatch[1];
+    if (modifierMatch) normalized += modifierMatch[1];
+
+    return normalized;
+  }
+
+  // For generic rolls (d notation)
+  // Extract: base roll, explosion (!), keep (k/kl/adv/dis), target/raise, modifiers
+  const genericMatch = rollExpression.match(/^(\d*[dD]\d+%?)(!)?(.*)$/);
+  if (genericMatch) {
+    const baseRoll = genericMatch[1]; // e.g., "3d6"
+    const explosion = genericMatch[2] || ''; // "!" or ""
+    const rest = genericMatch[3]; // everything after explosion
+
+    // Extract modifier types (keep can have optional number: k, k2, kl, kl3, adv, dis)
+    const keepMatch = rest.match(/([kK][lL]?|adv|dis)(\d*)/i);
+    const targetMatch = rest.match(/[tT](\d+)/);
+    const raiseMatch = rest.match(/[rR](\d+)/);
+    const modifierMatch = rest.match(/([+-]\d+)/);
+
+    // Rebuild: repeat + base + explosion + keep + target + raise + modifier
+    let normalized = repeatPrefix + baseRoll + explosion;
+    if (keepMatch) {
+      // Normalize keep operation (kl, kL, KL -> kl; k, K -> k)
+      const keepOp = keepMatch[1].toLowerCase();
+      normalized += keepOp + (keepMatch[2] || '');
+    }
+    if (targetMatch) normalized += 't' + targetMatch[1];
+    if (raiseMatch) normalized += 'r' + raiseMatch[1];
+    if (modifierMatch) normalized += modifierMatch[1];
+
+    return normalized;
+  }
+
+  // If no pattern matched, return original
+  return expression;
+}
+
+/**
  * Parse roll modifiers from expression
  * @param {string} expression - Dice expression
  * @returns {Object} Object with targetNumber, raiseInterval, and modifier
@@ -110,16 +180,21 @@ function evaluateSavageExpression(expression, result) {
  */
 function evaluateRoll(expression) {
   try {
-    // Use ANTLR4 parser for all expressions
-    const result = evaluateExpression(expression);
+    // Normalize expression to parser-friendly order
+    const normalized = normalizeExpression(expression);
 
-    // Savage Worlds roll result
-    const swResult = evaluateSavageExpression(expression, result);
+    // Use ANTLR4 parser for all expressions
+    const result = evaluateExpression(normalized);
+
+    // Savage Worlds roll result (use normalized for parsing, original for display)
+    const swResult = evaluateSavageExpression(normalized, result);
     if (swResult) {
+      // Use original expression for display
+      swResult.expression = expression;
       return swResult;
     }
 
-    // Regular R2 result
+    // Regular R2 result (use original expression for display)
     return {
       expression: expression,
       total: result.value,

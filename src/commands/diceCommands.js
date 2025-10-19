@@ -553,6 +553,17 @@ export async function cmd_roll_help(interaction) {
 
 *Note: Quick and Level Headed have the same mechanical effect*`,
         inline: false
+      },
+      {
+        name: '✨ Flexible Modifier Order',
+        value: `**Modifiers can be in ANY order!**
+\`s10+5r2t5\` = \`s10r2t5+5\` = \`s10t5+5r2\` ✅
+\`3d6!+5k2\` = \`3d6!k2+5\` = \`3d6k2!+5\` ✅
+\`3d6+2kl2\` = \`3d6kl2+2\` ✅
+\`3xs8+2r3t5\` = \`3xs8r3t5+2\` ✅
+
+*The bot automatically reorders modifiers for you!*`,
+        inline: false
       }
     ],
     footer: {

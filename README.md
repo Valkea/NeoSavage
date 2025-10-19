@@ -11,6 +11,7 @@ A Discord bot for **Savage Worlds** tabletop RPG mechanics, written in JavaScrip
 - **Automatic Raises**: Calculate success and raises based on target number
 - **Multi-Group Rolls**: `/roll dice:3d6 / s8 / 2d20adv` - Multiple dice groups with overall total
 - **Split Mode**: Add `/split` or `/s` to get separate messages per group
+- **✨ Flexible Modifiers**: Write modifiers in ANY order! `s10+5r2t5`, `3d6!+5k2`, `3d6+2kl2` all work
 
 ### ⚔️ Combat & Initiative
 - **Card-Based Initiative**: Deal playing cards for initiative order (Savage Worlds style)

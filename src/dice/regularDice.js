@@ -13,27 +13,35 @@ export function rollDie(sides) {
 
 /**
  * Roll a die with "acing" (exploding dice) - reroll and add on max value
+ * Returns a nested structure where each explosion creates a nextRoll
  * @param {number} sides - Number of sides on the die
  * @param {number} maxAces - Maximum number of times to ace (default 100)
- * @returns {object} - {total, rolls: [array of individual rolls]}
+ * @returns {object} - Nested die structure {value, exploded, nextRoll, total}
  */
 export function rollAcingDie(sides, maxAces = 100) {
-  const rolls = [];
-  let total = 0;
-  let aces = 0;
+  const firstRoll = rollDie(sides);
 
-  while (aces < maxAces) {
-    const roll = rollDie(sides);
-    rolls.push(roll);
-    total += roll;
+  // Build nested structure recursively
+  function buildNestedRoll(currentRoll, acesLeft) {
+    const exploded = currentRoll === sides && acesLeft > 0;
 
-    if (roll < sides) {
-      break; // Stop if we didn't roll max
+    const die = {
+      value: currentRoll,
+      exploded: exploded,
+      nextRoll: null,
+      total: currentRoll
+    };
+
+    if (exploded) {
+      const nextValue = rollDie(sides);
+      die.nextRoll = buildNestedRoll(nextValue, acesLeft - 1);
+      die.total += die.nextRoll.total;
     }
-    aces++;
+
+    return die;
   }
 
-  return { total, rolls };
+  return buildNestedRoll(firstRoll, maxAces);
 }
 
 /**

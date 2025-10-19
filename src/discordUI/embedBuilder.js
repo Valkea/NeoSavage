@@ -50,60 +50,122 @@ function getRandomDiceIcon() {
 }
 
 /**
- * Format a single roll with optional exploding dice and modifiers
- * @param {Object} roll - Roll result object
- * @param {Array} roll.rolls - Individual die rolls
- * @param {number} roll.total - Total result
- * @param {boolean} hasExploded - Whether dice exploded
- * @param {number} [dropCount] - Number of dropped dice to show
- * @returns {string} Formatted roll string
+ * Helper: Format a single die's explosion chain
+ * Traverses the nested nextRoll structure
+ * @param {Object} die - Die object {value, exploded, nextRoll, total}
+ * @returns {string} Formatted die chain (e.g., "6💥, 6💥, 3" or "5")
  */
-function formatRollValue(roll, hasExploded = false, dropCount = null) {
-  if (!roll.rolls || roll.rolls.length === 0) {
-    return `**${roll.total}**`;
+function formatDieChain(die) {
+  if (!die) return '';
+
+  const chain = [];
+  let current = die;
+
+  while (current) {
+    if (current.exploded && current.nextRoll) {
+      chain.push(`${current.value}💥`);
+    } else {
+      chain.push(current.value);
+    }
+    current = current.nextRoll;
   }
 
-  let rollDisplay;
-
-  if (hasExploded && roll.rolls.length > 1) {
-    // Format: **21** ← **[** **( 6💥, 6💥, 2 )** ]**
-    // In acing dice: all rolls EXCEPT the last one exploded
-    const explodedRolls = roll.rolls.slice(0, -1).map(r => `${r}💥`);
-    const finalRoll = roll.rolls[roll.rolls.length - 1];
-    const allRolls = [...explodedRolls, finalRoll];
-
-    rollDisplay = `**(** ${allRolls.join(', ')} **)**`;
-  } else {
-    // Format: **10** ← **[ **3, 5, 2** ]**
-    rollDisplay = `${roll.rolls.join(', ')}`;
-  }
-
-  let result = `**${roll.total}** ← **[** ${rollDisplay} **]**`;
-
-  // Add dropped dice modifier if present
-  if (dropCount !== null && dropCount > 0) {
-    result += ` ~~*( ${dropCount} )*~~`;
-  }
-
-  return result;
+  return chain.length > 1 ? `**(** ${chain.join(', ')} **)** ` : chain.join('');
 }
 
 /**
- * Create embed for single roll
+ * Format a generic roll result
+ * @param {Object} result - GenericRollResult instance
+ * @returns {string} Formatted roll string
+ */
+function formatGenericRoll(result) {
+  // Format each die with its explosion chain
+  const diceStrings = result.dice
+    .filter(die => !die.kept || die.kept === true) // Only show kept dice, or all if no kept property
+    .map(die => formatDieChain(die));
+
+  const diceDisplay = diceStrings.join(', ');
+
+  let output = `**${result.value}** ← **[** ${diceDisplay} **]**`;
+
+  // Add modifier if present
+  if (result.modifier !== null && result.modifier !== 0) {
+    const sign = result.modifier > 0 ? '+' : '';
+    output += ` ${sign}${result.modifier}`;
+  }
+
+  // Add dropped dice if present
+  if (result.droppedDice && result.droppedDice.length > 0) {
+    const droppedValues = result.droppedDice.map(die => die.total).join(', ');
+    output += ` ~~*( ${droppedValues} )*~~`;
+  }
+
+  return output;
+}
+
+/**
+ * Format a Savage Worlds wild die roll result
+ * @param {Object} result - SavageWildRollResult instance
+ * @returns {string} Formatted roll string
+ */
+function formatSavageWildRoll(result) {
+  const traitChain = formatDieChain(result.traitDie);
+  const wildChain = formatDieChain(result.wildDie);
+
+  let output = `**Trait:** ${traitChain} (${result.traitDie.total})\n`;
+  output += `**Wild:** ${wildChain} (${result.wildDie.total})\n`;
+  output += `**Result:** **${result.value}** • used ${result.usedDie} die`;
+
+  // Add modifier if present
+  if (result.modifier !== null && result.modifier !== 0) {
+    const sign = result.modifier > 0 ? '+' : '';
+    output += ` ${sign}${result.modifier}`;
+  }
+
+  // Add raises information if present
+  if (result.raises.success) {
+    if (result.raises.raises > 0) {
+      const stars = '⭐'.repeat(result.raises.raises);
+      const raiseWord = result.raises.raises === 1 ? 'raise' : 'raises';
+      output += `\n\n✅ Success with ${result.raises.raises} ${stars} ${raiseWord}`;
+    } else {
+      output += '\n\n✅ Success';
+    }
+  } else {
+    output += `\n\n💀 Failure by ${Math.abs(result.raises.margin)}`;
+  }
+  output += ` (🎯 ${result.targetNumber} | 🪜 ${result.raiseInterval})`;
+
+  return output;
+}
+
+/**
+ * Create embed for single roll (deprecated - kept for backward compatibility)
  * @param {string} expression - Dice expression
  * @param {Object} result - Roll result
  * @returns {EmbedBuilder}
  */
 export function createSingleRollEmbed(expression, result) {
-  const hasExploded = result.rolls && result.rolls.some(r => r === Math.max(...result.rolls));
   const diceIcon = getRandomDiceIcon();
+
+  // Use the new structured format
+  let rollValue;
+  if (result.rollType === 'generic') {
+    rollValue = formatGenericRoll(result);
+  } else if (result.rollType === 'savageWild') {
+    rollValue = formatSavageWildRoll(result);
+  } else {
+    // Fallback for old format
+    const hasExploded = result.rolls && result.rolls.some(r => r === Math.max(...result.rolls));
+    rollValue = `**${result.total || result.value}**`;
+  }
 
   const embed = new EmbedBuilder()
     .setColor(DICE_COLOR)
     .setDescription(`\`${expression}\``)
     .addFields({
       name: '__Roll__',
-      value: formatRollValue(result, hasExploded),
+      value: rollValue,
       inline: false
     })
     .setThumbnail(diceIcon.url)
@@ -123,10 +185,24 @@ export function createSingleRollEmbed(expression, result) {
  * @returns {EmbedBuilder}
  */
 export function createMultipleRollsEmbed(expression, rolls, total) {
-  const rollsValue = rolls.map((roll) => {
-    const hasExploded = roll.rolls && roll.rolls.some(r => r === Math.max(...roll.rolls));
-    return formatRollValue(roll, hasExploded);
-  }).join('\n');
+  const rollsValue = rolls.map((roll, index) => {
+    let formattedRoll;
+    if (roll.rollType === 'generic') {
+      formattedRoll = formatGenericRoll(roll);
+    } else if (roll.rollType === 'savageWild') {
+      formattedRoll = formatSavageWildRoll(roll);
+    } else {
+      // Fallback
+      formattedRoll = `**${roll.value}**`;
+    }
+
+    // Add roll number prefix for multi-line rolls (Savage Worlds)
+    if (roll.rollType === 'savageWild') {
+      return `**Roll ${index + 1}:**\n${formattedRoll}`;
+    }
+    return formattedRoll;
+  }).join('\n\n'); // Double newline for better separation
+
   const diceIcon = getRandomDiceIcon();
 
   const embed = new EmbedBuilder()
@@ -156,48 +232,45 @@ export function createMultipleRollsEmbed(expression, rolls, total) {
 /**
  * Create embed for Savage Worlds wild die roll
  * @param {string} expression - Dice expression
- * @param {Object} result - Wild die result
- * @param {number} targetNumber - Target number for the roll
- * @param {number} raiseInterval - Points needed per raise (default 4)
+ * @param {Object} result - SavageWildRollResult instance
+ * @param {number} targetNumber - Target number for the roll (deprecated, use result.targetNumber)
+ * @param {number} raiseInterval - Points needed per raise (deprecated, use result.raiseInterval)
  * @returns {EmbedBuilder}
  */
 export function createWildDieEmbed(expression, result, targetNumber = null, raiseInterval = 4) {
-  const traitRoll = formatRollValue(result.traitRoll, true);
-  const wildRoll = formatRollValue(result.wildRoll, true);
   const diceIcon = getRandomDiceIcon();
 
-  // Determine what fields we have
-  const hasModifier = result.modifier && result.modifier !== 0;
-
-  // Build final result display with calculation breakdown
-  let finalResultText = `**${result.total}**`;
-
-  // Show calculation if there's a modifier
-  if (hasModifier) {
-    const baseTotal = result.usedDie === 'trait' ? result.traitRoll.total : result.wildRoll.total;
-    const modifierSign = result.modifier > 0 ? '+' : '';
-    finalResultText = `**${result.total}** ← **[** ${baseTotal} **]** ${modifierSign}${result.modifier}`;
-  }
-
-  finalResultText += ` • used ${result.usedDie} die`;
-
-  // Build fields array conditionally
+  // Use the new structured format
+  const traitChain = formatDieChain(result.traitDie);
+  const wildChain = formatDieChain(result.wildDie);
 
   const fields = [
     {
       name: '__Trait Die__',
-      value: traitRoll,
+      value: `${traitChain} (${result.traitDie.total})`,
       inline: true
     },
     {
       name: '__Wild Die__',
-      value: wildRoll,
+      value: `${wildChain} (${result.wildDie.total})`,
       inline: true
     }
   ];
 
-  // Add raises information if target number provided
-  if (result.raises !== undefined) {
+  // Build final result display
+  let finalResultText = `**${result.value}**`;
+
+  // Show calculation if there's a modifier
+  if (result.modifier && result.modifier !== 0) {
+    const baseTotal = result.usedDie === 'trait' ? result.traitDie.total : result.wildDie.total;
+    const modifierSign = result.modifier > 0 ? '+' : '';
+    finalResultText = `**${result.value}** ← **[** ${baseTotal} **]** ${modifierSign}${result.modifier}`;
+  }
+
+  finalResultText += ` • used ${result.usedDie} die`;
+
+  // Add raises information if present
+  if (result.raises) {
     let successText;
 
     if (result.raises.success) {
@@ -209,11 +282,14 @@ export function createWildDieEmbed(expression, result, targetNumber = null, rais
         successText = '✅ Success';
       }
     } else {
-      successText = `💀 ${result.raises.description}`;
+      successText = `💀 Failure by ${Math.abs(result.raises.margin)}`;
     }
 
-    if (targetNumber !== null) {
-      successText += ` (🎯 ${targetNumber} | 🪜 ${raiseInterval})`;
+    const tn = result.targetNumber !== null ? result.targetNumber : targetNumber;
+    const ri = result.raiseInterval !== null ? result.raiseInterval : raiseInterval;
+
+    if (tn !== null) {
+      successText += ` (🎯 ${tn} | 🪜 ${ri})`;
     }
 
     finalResultText += `\n\n${successText}`;
@@ -229,17 +305,13 @@ export function createWildDieEmbed(expression, result, targetNumber = null, rais
   // Determine thumbnail based on success/failure
   let thumbnailUrl = diceIcon.url;
 
-  // If we have raises information, use success/failure icons
-  if (result.raises !== undefined) {
+  if (result.raises) {
     if (result.raises.success) {
-      // Success
       thumbnailUrl = 'https://cdn-icons-png.flaticon.com/512/3426/3426250.png';
       if (result.raises.raises > 0) {
-        // Success with raises
         thumbnailUrl = 'https://cdn-icons-png.flaticon.com/512/3426/3426127.png';
       }
     } else {
-      // Failure
       thumbnailUrl = 'https://cdn-icons-png.flaticon.com/512/3426/3426286.png';
     }
   }
@@ -254,65 +326,9 @@ export function createWildDieEmbed(expression, result, targetNumber = null, rais
 }
 
 /**
- * Parse and format R2 description with exploding dice
- * @param {string} description - R2 description like "[6+5]=11, 3, 4" or "3, 5, 2"
- * @returns {string} Formatted dice string
- */
-function formatR2Dice(description) {
-  // Check for modifiers first (+ or - followed by number at the end)
-  const modifierMatch = description.match(/^(.+?)\s*([+-]\s*\d+)\s*$/);
-  let baseDescription = description;
-  let modifier = null;
-  
-  if (modifierMatch) {
-    baseDescription = modifierMatch[1].trim();
-    modifier = modifierMatch[2].replace(/\s/g, ''); // Remove spaces from modifier
-  }
-
-  // Check if there are dropped dice (separated by |)
-  const pipeSplit = baseDescription.split('|');
-  const diceDescription = pipeSplit[0];
-  const droppedDescription = pipeSplit.length > 1 ? pipeSplit[1] : null;
-
-  // Split by commas to get individual dice or exploding groups
-  const parts = diceDescription.split(',').map(p => p.trim());
-  const formatted = [];
-
-  for (const part of parts) {
-    // Check if this is an exploding dice group like [6+5]=11 or [6+6+4]=16
-    const explodeMatch = part.match(/\[([^\]]+)\]=(\d+)/);
-
-    if (explodeMatch) {
-      // Parse the exploded dice: [6+5] -> 6💥, 5  or  [6+6+4] -> 6💥, 6💥, 4
-      const diceValues = explodeMatch[1].split('+').map(d => d.trim());
-      // Add explosion emoji to all dice EXCEPT the last one (which stopped the explosion)
-      const formattedDice = diceValues.map((d, i) =>
-        i < diceValues.length - 1 ? `${d}💥` : d
-      ).join(', ');
-      formatted.push(`**(** ${formattedDice} **)**`);
-    } else {
-      // Regular die, just add it
-      formatted.push(part);
-    }
-  }
-
-  // Join with commas and spaces, then wrap in **
-  let result;
-  if (formatted.some(f => f.includes('**('))) {
-    // Has exploded dice - don't wrap the whole thing
-    result = formatted.join(', ');
-  } else {
-    // All regular dice - wrap in **
-    result = `${formatted.join(', ')}`;
-  }
-
-  return { formattedDice: result, droppedDice: droppedDescription, modifier: modifier };
-}
-
-/**
- * Create embed for R2 parser results
+ * Create embed for R2 parser results (using structured data)
  * @param {string} expression - Dice expression
- * @param {Object} result - R2 evaluation result
+ * @param {Object} result - RollResult instance with structured data
  * @returns {EmbedBuilder}
  */
 export function createR2ResultEmbed(expression, result) {
@@ -327,24 +343,25 @@ export function createR2ResultEmbed(expression, result) {
       iconURL: diceIcon.url
     });
 
-  // Check if this is multiple rolls (result.rolls is an array of RollResult objects)
-  if (result.rolls && Array.isArray(result.rolls) && result.rolls.length > 1 && result.rolls[0].value !== undefined) {
-    // Multiple rolls - format each roll individually
-    const rollsValue = result.rolls.map((roll) => {
-      if (roll.description) {
-        const { formattedDice, droppedDice, modifier } = formatR2Dice(roll.description);
-        let line = `**${roll.value}** ← **[** ${formattedDice} **]**`;
-        if (modifier) {
-          line = `**${roll.value}** ← **[** ${formattedDice} **]** ${modifier}`;
-        }
-        if (droppedDice) {
-          line += ` ~~*( ${droppedDice} )*~~`;
-        }
-        return line;
+  // Handle different roll types using the structured data
+  if (result.rollType === 'multiple' && result.rolls && result.rolls.length > 1) {
+    // Multiple rolls - format each roll
+    const rollsValue = result.rolls.map((roll, index) => {
+      let formattedRoll;
+      if (roll.rollType === 'generic') {
+        formattedRoll = formatGenericRoll(roll);
+      } else if (roll.rollType === 'savageWild') {
+        formattedRoll = formatSavageWildRoll(roll);
       } else {
-        return `**${roll.value}**`;
+        formattedRoll = `**${roll.value}**`;
       }
-    }).join('\n');
+
+      // Add roll number prefix for multi-line rolls (Savage Worlds)
+      if (roll.rollType === 'savageWild') {
+        return `**Roll ${index + 1}:**\n${formattedRoll}`;
+      }
+      return formattedRoll;
+    }).join('\n\n'); // Double newline for better separation
 
     embed.addFields(
       {
@@ -358,28 +375,25 @@ export function createR2ResultEmbed(expression, result) {
         inline: false
       }
     );
-  } else {
-    // Single roll
-    let rollValue;
-    if (result.description) {
-      // Has dice rolls - format as: **10** ← **[ **3, 5, 2** ]**
-      // or with exploding: **21** ← **[** **( 6💥,6💥, 2 )**, 3, 4** ]**
-      const { formattedDice, droppedDice, modifier } = formatR2Dice(result.description);
-      rollValue = `**${result.value}** ← **[** ${formattedDice} **]**`;
-      if (modifier) {
-        rollValue = `**${result.value}** ← **[** ${formattedDice} **]** ${modifier}`;
-      }
-      if (droppedDice) {
-        rollValue += ` ~~*( ${droppedDice} )*~~`;
-      }
-    } else {
-      // Just a value
-      rollValue = `${result.value}`;
-    }
-
+  } else if (result.rollType === 'generic') {
+    // Single generic roll
     embed.addFields({
       name: '__Roll__',
-      value: rollValue,
+      value: formatGenericRoll(result),
+      inline: false
+    });
+  } else if (result.rollType === 'savageWild') {
+    // Single Savage Worlds roll
+    embed.addFields({
+      name: '__Roll__',
+      value: formatSavageWildRoll(result),
+      inline: false
+    });
+  } else {
+    // Simple value or fallback
+    embed.addFields({
+      name: '__Roll__',
+      value: `**${result.value}**`,
       inline: false
     });
   }
@@ -422,52 +436,48 @@ export function createCombinedRollEmbed(results, overallTotal) {
   results.forEach((result, index) => {
     const groupNumber = index + 1;
     let fieldValue;
-    
+
     if (result.error) {
       fieldValue = `❌ Error: ${result.error}`;
-    } else if (result.isWildDie) {
-      // Format wild die result
-      const traitRoll = formatRollValue(result.result.traitRoll, true);
-      const wildRoll = formatRollValue(result.result.wildRoll, true);
-      
-      fieldValue = `**Trait Die:** ${traitRoll}\n`;
-      fieldValue += `**Wild Die:** ${wildRoll}\n`;
-      fieldValue += `**Result:** **${result.total}** • used ${result.result.usedDie} die`;
-      
-      // Add success/failure info if available
-      if (result.result.raises !== undefined) {
-        if (result.result.raises.success) {
-          if (result.result.raises.raises > 0) {
-            const stars = '⭐'.repeat(result.result.raises.raises);
-            const raiseWord = result.result.raises.raises === 1 ? 'raise' : 'raises';
-            fieldValue += `\n✅ Success with ${result.result.raises.raises} ${stars} ${raiseWord}`;
-          } else {
-            fieldValue += '\n✅ Success';
-          }
-        } else {
-          fieldValue += `\n💀 ${result.result.raises.description}`;
-        }
-        
-        if (result.targetNumber !== null) {
-          fieldValue += ` (🎯 ${result.targetNumber})`;
-        }
-      }
     } else {
-      // Format regular R2 result
-      if (result.result.description) {
-        const { formattedDice, droppedDice, modifier } = formatR2Dice(result.result.description);
-        fieldValue = `**${result.total}** ← **[** ${formattedDice} **]**`;
-        if (modifier) {
-          fieldValue = `**${result.total}** ← **[** ${formattedDice} **]** ${modifier}`;
-        }
-        if (droppedDice) {
-          fieldValue += ` ~~*( ${droppedDice} )*~~`;
-        }
+      // Use the actual result object
+      const actualResult = result.result;
+
+      // Check if it's multiple rolls (multiple SW or generic)
+      if (actualResult.rollType === 'multiple' && actualResult.rolls && actualResult.rolls.length > 1) {
+        // Check if any rolls are Savage Worlds (multi-line)
+        const hasSavageRolls = actualResult.rolls.some(r => r.rollType === 'savageWild');
+        const separator = hasSavageRolls ? '\n\n' : '\n';
+
+        // Multiple rolls - format each with appropriate separator
+        fieldValue = actualResult.rolls.map((roll, rollIndex) => {
+          let formatted;
+          if (roll.rollType === 'savageWild') {
+            formatted = `**Roll ${rollIndex + 1}:**\n${formatSavageWildRoll(roll)}`;
+          } else if (roll.rollType === 'generic') {
+            formatted = formatGenericRoll(roll);
+          } else {
+            formatted = `**${roll.value}**`;
+          }
+          return formatted;
+        }).join(separator);
+
+        fieldValue += `\n${hasSavageRolls ? '\n' : ''}**Total: ${result.total}**`;
+
+      } else if (actualResult.rollType === 'savageWild') {
+        // Single Savage Worlds roll
+        fieldValue = formatSavageWildRoll(actualResult);
+
+      } else if (actualResult.rollType === 'generic') {
+        // Single generic roll
+        fieldValue = formatGenericRoll(actualResult);
+
       } else {
+        // Simple value or fallback
         fieldValue = `**${result.total}**`;
       }
     }
-    
+
     fields.push({
       name: `__Group ${groupNumber}:__ \`${result.expression}\``,
       value: fieldValue,
@@ -478,7 +488,7 @@ export function createCombinedRollEmbed(results, overallTotal) {
   // Add overall total field
   fields.push({
     name: '__Overall Total__',
-    value: `🎯 **${overallTotal}**`,
+    value: `**${overallTotal}**`,
     inline: false
   });
 
@@ -496,19 +506,22 @@ export function createEmbedForResult(rollResult) {
     return createErrorEmbed(rollResult.error);
   }
 
-  // Wild
-  if (rollResult.isWildDie) {
+  // Check the actual result's rollType (new structured format)
+  const actualResult = rollResult.result;
+
+  // Savage Worlds wild die (check both old isWildDie flag and new rollType)
+  if (rollResult.isWildDie || actualResult.rollType === 'savageWild') {
     return createWildDieEmbed(
       rollResult.expression,
-      rollResult.result,
-      rollResult.targetNumber,
-      rollResult.raiseInterval
+      actualResult,
+      rollResult.targetNumber || actualResult.targetNumber,
+      rollResult.raiseInterval || actualResult.raiseInterval
     );
   }
 
-  // Other / Regular
+  // Other / Regular (generic, multiple, etc.)
   return createR2ResultEmbed(
     rollResult.expression,
-    rollResult.result
+    actualResult
   );
 }

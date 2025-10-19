@@ -18,30 +18,66 @@ import {
 //**************************************************
 
 /**
+ * Evaluate a Savage Worlds expression and return structured result
+ */
+function evaluateSavageExpression(expression, result) {
+  // Extract target/raise info from the expression
+  const targetMatch = expression.match(/t(\d+)/i);
+  const raiseMatch = expression.match(/r(\d+)/i);
+  const modifierMatch = expression.match(/([+-]\d+)/);
+
+  const targetNumber = targetMatch ? parseInt(targetMatch[1]) : null;
+  const raiseInterval = raiseMatch ? parseInt(raiseMatch[1]) : null;
+  const modifier = modifierMatch ? parseInt(modifierMatch[1]) : 0;
+
+  // Check if result.rolls is an array (multiple rolls) or object (single roll)
+  const swRollData = Array.isArray(result.rolls) ? result.rolls[0] : result.rolls;
+
+  if (!swRollData || !swRollData.trait || !swRollData.wild) {
+    return null; // Not a valid SW result
+  }
+
+  // Check if this is multiple SW rolls or single
+  if (Array.isArray(result.rolls) && result.rolls.length > 1) {
+    // Multiple SW rolls (e.g., 2xs8t3r2+2)
+    return {
+      expression: expression,
+      total: result.value,
+      isWildDie: true,
+      result: {
+        rolls: result.rolls,
+        modifier: modifier
+      },
+      targetNumber: targetNumber,
+      raiseInterval: raiseInterval
+    };
+  } else {
+    // Single SW roll from R2
+    const { wildResult, targetNumber: tn, raiseInterval: ri } = createWildResultFromR2(swRollData);
+
+    return {
+      expression: expression,
+      total: wildResult.total,
+      isWildDie: true,
+      result: wildResult,
+      targetNumber: targetNumber || tn,
+      raiseInterval: raiseInterval || ri
+    };
+  }
+}
+
+/**
  * Evaluate a single roll expression and return structured result
  */
 function evaluateRoll(expression) {
   try {
-
-    // Use ANTLR4 parser for all other expressions
+    // Use ANTLR4 parser for all expressions
     const result = evaluateExpression(expression);
 
-    // Check if R2 result is a Savage Worlds roll from the evaluator
-    // result.rolls can be either an array [{ trait, wild }] or an object { trait, wild, success, raises }
-    const swRollData = Array.isArray(result.rolls) ? result.rolls[0] : result.rolls;
-
-    if (swRollData && swRollData.trait && swRollData.wild) {
-      // Single SW roll from R2
-      const { wildResult, targetNumber, raiseInterval } = createWildResultFromR2(swRollData);
-
-      return {
-        expression: expression,
-        total: wildResult.total,
-        isWildDie: true,
-        result: wildResult,
-        targetNumber: targetNumber,
-        raiseInterval: raiseInterval
-      };
+    // Savage Worlds roll result
+    const swResult = evaluateSavageExpression(expression, result);
+    if (swResult) {
+      return swResult;
     }
 
     // Regular R2 result

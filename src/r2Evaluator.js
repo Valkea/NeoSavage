@@ -18,20 +18,99 @@ import R2Visitor from './parser/R2Visitor.js';
 import { rollDie, rollAcingDie } from './dice/regularDice.js';
 
 /**
- * Roll result class
+ * Base class for all roll results
  */
 export class RollResult {
-  constructor(value, description = '', rolls = []) {
+  constructor(value) {
     this.value = value;
-    this.description = description;
-    this.rolls = rolls;
   }
 
   toString() {
-    if (this.description) {
-      return `${this.value} (${this.description})`;
-    }
     return this.value.toString();
+  }
+}
+
+/**
+ * Generic dice roll result (2d6, 3d8!, 4d6k3, etc.)
+ */
+export class NestedRollResult extends RollResult {
+  constructor(value, dice, exploded = false) {
+    super(value);
+    this.rollType = 'nested';
+    this.exploded = exploded;
+    this.dice = dice;              // Array of nested die structures
+  }
+}
+/**
+ * Generic dice roll result (2d6, 3d8!, 4d6k3, etc.)
+ */
+export class GenericRollResult extends RollResult {
+  constructor(value, dice, modifier = null, droppedDice = [], keepOperation = null) {
+    super(value);
+    this.rollType = 'generic';
+    this.dice = dice;              // Array of nested die structures (NestedRollResult)
+    this.modifier = modifier;       // Numeric modifier (can be + or -)
+    this.droppedDice = droppedDice; // Array of dropped dice
+    this.keepOperation = keepOperation; // 'highest', 'lowest', 'advantage', 'disadvantage'
+  }
+}
+
+/**
+ * Savage Worlds wild die roll result (s8, s8+2t4r4)
+ */
+export class SavageWildRollResult extends RollResult {
+  constructor(value, traitDie, wildDie, usedDie, modifier = 0, targetNumber = null, raiseInterval = null, raises = null) {
+    super(value);
+    this.rollType = 'savageWild';
+    this.traitDie = traitDie;       // Nested die structure (NestedRollResult)
+    this.wildDie = wildDie;         // Nested die structure (NestedRollResult)
+    this.usedDie = usedDie;         // 'trait' or 'wild'
+    this.modifier = modifier;       // Numeric modifier
+    this.targetNumber = targetNumber;
+    this.raiseInterval = raiseInterval;
+    this.raises = raises;           // {success, raises, margin, description}
+  }
+}
+
+/**
+ * Multiple rolls (2xs8+2t4r4)
+ */
+export class MultipleRollsResult extends RollResult {
+  constructor(value, rolls, modifier = 0, targetNumber = null, raiseInterval = null) {
+    super(value);
+    this.rollType = 'multiple';
+    this.rolls = rolls;             // Array of SavageWildRollResult or GenericRollResult
+  }
+}
+
+
+/**
+ * Simple value result (for arithmetic, variables, etc.)
+ */
+export class SimpleValueResult extends RollResult {
+  constructor(value, description = '') {
+    super(value);
+    this.rollType = 'simple';
+    this.description = description;
+  }
+
+  toString() {
+    return this.description || super.toString();
+  }
+}
+
+/**
+ * Success/Fail counting result
+ */
+export class SuccessFailRollResult extends RollResult {
+  constructor(value, dice, successes, failures, successTarget, failTarget = null) {
+    super(value);
+    this.rollType = 'successFail';
+    this.dice = dice;
+    this.successes = successes;
+    this.failures = failures;
+    this.successTarget = successTarget;
+    this.failTarget = failTarget;
   }
 }
 
@@ -72,32 +151,16 @@ export class R2EvaluatorVisitor extends R2Visitor {
   // Roll multiple times statement: Nx[expression]
   visitRollTimesStmt(ctx) {
     const times = parseInt(ctx.n.getText());
-    const results = [];
+    const rolls = [];
 
-    // For better performance with large roll counts, we could batch process
-    // but for now, keep it simple and sequential to maintain compatibility
     for (let i = 0; i < times; i++) {
       const result = this.visit(ctx.e);
-      results.push(result);
+      rolls.push(result);
     }
 
-    const total = results.reduce((sum, r) => sum + r.value, 0);
+    const total = rolls.reduce((sum, r) => sum + r.value, 0);
 
-    // Build detailed description showing individual rolls and their calculations
-    const descriptions = results.map((r, i) => {
-      // If we have a description (like from keep/drop operations), show it
-      if (r.description) {
-        return `  Roll ${i+1}: ${r.description} → ${r.value}`;
-      }
-      // Otherwise just show the value
-      return `  Roll ${i+1}: ${r.value}`;
-    }).join('\n');
-
-    return new RollResult(
-      total,
-      `${times}x rolls:\n${descriptions}\nTotal: ${total}`,
-      results
-    );
+    return new MultipleRollsResult(total, rolls);
   }
 
   // Roll batch times: Nx[expression1; expression2; ...]
@@ -122,33 +185,48 @@ export class R2EvaluatorVisitor extends R2Visitor {
   // Savage Worlds extras roll statement: Ne6, 4e8, etc.
   visitRollSavageWorldsExtraStmt(ctx) {
     const count = parseInt(ctx.n.getText());
-    const traitDie = parseInt(ctx.t1.getText());
+    const traitDieSize = parseInt(ctx.t1.getText());
 
-    const results = [];
-    for (let i = 0; i < count; i++) {
-      const roll = rollAcingDie(traitDie);
-      results.push(roll);
-    }
-
-    // Apply modifier if present
-    let total = results.reduce((sum, r) => sum + r.total, 0);
-    let desc = results.map(r => this.formatAcingRoll(r)).join(', ');
-
+    // Extract modifier if present
+    let modifier = 0;
     if (ctx.additiveModifier()) {
       const modCtx = ctx.additiveModifier();
-      const modifier = this.visit(modCtx.em);
+      const modValue = this.visit(modCtx.em);
       const op = modCtx.op.text;
-      total = op === '+' ? total + modifier.value : total - modifier.value;
-      desc += ` ${op} ${modifier.value}`;
+      modifier = op === '+' ? modValue.value : -modValue.value;
     }
 
-    // Handle target number if present
+    // Extract target number and raise step if present
     const tnCtx = ctx.targetNumberAndRaiseStep();
+    let targetNumber = null;
+    let raiseInterval = null;
+
     if (tnCtx) {
-      return this.applyTargetNumberMultiple(results, tnCtx, total);
+      targetNumber = tnCtx.tt ? parseInt(tnCtx.tt.getText()) : 4;
+      raiseInterval = tnCtx.tr ? parseInt(tnCtx.tr.getText()) : 4;
+      if (tnCtx.tnr) {
+        targetNumber = parseInt(tnCtx.tnr.getText());
+        raiseInterval = targetNumber;
+      }
+      if (tnCtx.tgtn) targetNumber = parseInt(tnCtx.tgtn.getText());
     }
 
-    return new RollResult(total, desc, results);
+    const dice = [];
+    for (let i = 0; i < count; i++) {
+      const die = rollAcingDie(traitDieSize);
+      dice.push(die);
+    }
+
+    const baseTotal = dice.reduce((sum, die) => sum + die.total, 0);
+    const total = baseTotal + modifier;
+
+    return new RollResult(total, {
+      rollType: 'savageExtras',
+      dice: dice,
+      modifier: modifier,
+      targetNumber: targetNumber,
+      raiseInterval: raiseInterval
+    });
   }
 
   // IronSworn roll statement
@@ -201,84 +279,142 @@ export class R2EvaluatorVisitor extends R2Visitor {
     const sides = sidesText === '%' ? 100 : parseInt(sidesText);
     const acing = rollCtx.excl !== null;
 
-    let rolls = [];
-    let total = 0;
+    const dice = [];
 
-    // Roll the dice
+    // Roll the dice with nested structure
     for (let i = 0; i < count; i++) {
       if (acing) {
-        const result = rollAcingDie(sides);
-        rolls.push(result);
-        total += result.total;
+        const die = rollAcingDie(sides);
+        dice.push(die);
       } else {
-        const roll = rollDie(sides);
-        rolls.push({ total: roll, rolls: [roll] });
-        total += roll;
+        const value = rollDie(sides);
+        dice.push({
+          value: value,
+          exploded: false,
+          nextRoll: null,
+          total: value
+        });
       }
     }
 
     // Handle suffixes (keep, success/fail, target number)
     const suffix = rollCtx.genericRollSuffix();
     if (suffix) {
-      return this.applyGenericSuffix(rolls, total, suffix, sides);
+      return this.applyGenericSuffix(dice, suffix, sides);
     }
 
-    return new RollResult(total, this.formatRolls(rolls), rolls);
+    // Calculate total
+    const total = dice.reduce((sum, die) => sum + die.total, 0);
+
+    return new GenericRollResult(total, dice, null, []);
   }
 
   // Savage Worlds roll: s8, s8w6, s12w6
   visitSavageWorldsRollExpr(ctx) {
     const rollCtx = ctx.savageWorldsRoll();
     const count = rollCtx.t1 ? parseInt(rollCtx.t1.getText()) : 1;
-    const traitDie = parseInt(rollCtx.t2.getText());
-    const wildDie = rollCtx.t3 ? parseInt(rollCtx.t3.getText()) : 6;
+    const traitDieSize = parseInt(rollCtx.t2.getText());
+    const wildDieSize = rollCtx.t3 ? parseInt(rollCtx.t3.getText()) : 6;
 
-    const results = [];
+    // Extract target number and raise step if present
+    const tnCtx = rollCtx.targetNumberAndRaiseStep();
+    let targetNumber = null;
+    let raiseInterval = null;
+
+    if (tnCtx) {
+      targetNumber = tnCtx.tt ? parseInt(tnCtx.tt.getText()) : 4;
+      raiseInterval = tnCtx.tr ? parseInt(tnCtx.tr.getText()) : 4;
+      if (tnCtx.tnr) {
+        targetNumber = parseInt(tnCtx.tnr.getText());
+        raiseInterval = targetNumber;
+      }
+      if (tnCtx.tgtn) targetNumber = parseInt(tnCtx.tgtn.getText());
+    }
+
+    // Single roll
+    if (count === 1) {
+      const traitDie = rollAcingDie(traitDieSize);
+      const wildDie = rollAcingDie(wildDieSize);
+      const usedDie = traitDie.total >= wildDie.total ? 'trait' : 'wild';
+      const baseValue = Math.max(traitDie.total, wildDie.total);
+
+      // Always calculate raises for Savage Worlds (default TN 4, raise interval 4)
+      const effectiveTN = targetNumber !== null ? targetNumber : 4;
+      const effectiveRI = raiseInterval !== null ? raiseInterval : 4;
+
+      const margin = baseValue - effectiveTN;
+      const success = margin >= 0;
+      const raiseCount = success ? Math.floor(margin / effectiveRI) : 0;
+      const raises = {
+        success: success,
+        raises: raiseCount,
+        margin: margin,
+        description: success ? 'Success' : 'Failure'
+      };
+
+      return new SavageWildRollResult(baseValue, traitDie, wildDie, usedDie, 0, effectiveTN, effectiveRI, raises);
+    }
+
+    // Multiple rolls - each roll is a complete savageWild structure
+    const rolls = [];
+
+    // Always calculate raises for Savage Worlds (default TN 4, raise interval 4)
+    const effectiveTN = targetNumber !== null ? targetNumber : 4;
+    const effectiveRI = raiseInterval !== null ? raiseInterval : 4;
 
     for (let i = 0; i < count; i++) {
-      const trait = rollAcingDie(traitDie);
-      const wild = rollAcingDie(wildDie);
+      const traitDie = rollAcingDie(traitDieSize);
+      const wildDie = rollAcingDie(wildDieSize);
+      const usedDie = traitDie.total >= wildDie.total ? 'trait' : 'wild';
+      const baseValue = Math.max(traitDie.total, wildDie.total);
 
-      const bestRoll = Math.max(trait.total, wild.total);
-      results.push({
-        trait,
-        wild,
-        result: bestRoll,
-        usedDie: trait.total >= wild.total ? 'trait' : 'wild'
-      });
+      const margin = baseValue - effectiveTN;
+      const success = margin >= 0;
+      const raiseCount = success ? Math.floor(margin / effectiveRI) : 0;
+      const raises = {
+        success: success,
+        raises: raiseCount,
+        margin: margin,
+        description: success ? 'Success' : 'Failure'
+      };
+
+      rolls.push(new SavageWildRollResult(baseValue, traitDie, wildDie, usedDie, 0, effectiveTN, effectiveRI, raises));
     }
 
-    // Handle target number if present
-    const tnCtx = rollCtx.targetNumberAndRaiseStep();
-    if (tnCtx) {
-      return this.applyTargetNumber(results, tnCtx);
-    }
+    const total = rolls.reduce((sum, r) => sum + r.value, 0);
 
-    if (results.length === 1) {
-      const r = results[0];
-      const desc = `trait: ${this.formatAcingRoll(r.trait)}, wild: ${this.formatAcingRoll(r.wild)} → ${r.result}`;
-      return new RollResult(r.result, desc);
-    }
-
-    const total = results.reduce((sum, r) => sum + r.result, 0);
-    const desc = results.map(r => r.result).join(', ');
-    return new RollResult(total, desc, results);
+    return new MultipleRollsResult(total, rolls, 0, targetNumber, raiseInterval);
   }
 
   // Savage Worlds extras roll: e6, 4e8
   visitSavageWorldsExtrasRollExpr(ctx) {
     const rollCtx = ctx.savageWorldsExtrasRoll();
-    const traitDie = parseInt(rollCtx.t1.getText());
+    const traitDieSize = parseInt(rollCtx.t1.getText());
 
-    const result = rollAcingDie(traitDie);
+    const die = rollAcingDie(traitDieSize);
 
-    // Handle target number if present
+    // Extract target number and raise step if present
     const tnCtx = rollCtx.targetNumberAndRaiseStep();
+    let targetNumber = null;
+    let raiseInterval = null;
+
     if (tnCtx) {
-      return this.applyTargetNumberSingle(result.total, tnCtx);
+      targetNumber = tnCtx.tt ? parseInt(tnCtx.tt.getText()) : 4;
+      raiseInterval = tnCtx.tr ? parseInt(tnCtx.tr.getText()) : 4;
+      if (tnCtx.tnr) {
+        targetNumber = parseInt(tnCtx.tnr.getText());
+        raiseInterval = targetNumber;
+      }
+      if (tnCtx.tgtn) targetNumber = parseInt(tnCtx.tgtn.getText());
     }
 
-    return new RollResult(result.total, this.formatAcingRoll(result));
+    return new RollResult(die.total, {
+      rollType: 'savageExtras',
+      dice: [die],
+      modifier: 0,
+      targetNumber: targetNumber,
+      raiseInterval: raiseInterval
+    });
   }
 
   // Fudge dice: dF, 4dF
@@ -343,14 +479,26 @@ export class R2EvaluatorVisitor extends R2Visitor {
     const right = this.visit(ctx.e2);
     const op = ctx.op.text;
 
-    const result = op === '+' ? left.value + right.value : left.value - right.value;
+    const modifierValue = op === '+' ? right.value : -right.value;
+    const result = left.value + modifierValue;
 
-    // Preserve detailed description from left side (e.g., from keep operations)
-    if (left.description) {
-      return new RollResult(result, `${left.description} ${op} ${right.value}`, left.rolls);
+    // If left side is a dice roll, add modifier to it
+    if (left.rollType === 'generic') {
+      return new GenericRollResult(result, left.dice, modifierValue, left.droppedDice, left.keepOperation);
+    } else if (left.rollType === 'savageWild') {
+      // Recalculate raises if there's a target number
+      const raises = left.raises && left.targetNumber !== null ? {
+        success: result >= left.targetNumber,
+        raises: result >= left.targetNumber ? Math.floor((result - left.targetNumber) / left.raiseInterval) : 0,
+        margin: result - left.targetNumber,
+        description: result >= left.targetNumber ? 'Success' : 'Failure'
+      } : left.raises;
+
+      return new SavageWildRollResult(result, left.traitDie, left.wildDie, left.usedDie, modifierValue, left.targetNumber, left.raiseInterval, raises);
     }
 
-    return new RollResult(result, `${left.value} ${op} ${right.value}`);
+    // Simple arithmetic
+    return new SimpleValueResult(result, `${left.value} ${op} ${right.value}`);
   }
 
   visitPrefixExpr(ctx) {
@@ -424,45 +572,30 @@ export class R2EvaluatorVisitor extends R2Visitor {
     return roll.total.toString();
   }
 
-  applyGenericSuffix(rolls, total, suffix) {
+  applyGenericSuffix(dice, suffix) {
     // Handle RollAndKeepSuffix
     if (suffix.constructor.name === 'RollAndKeepSuffixContext') {
       const op = suffix.op.text.toLowerCase();
       const keepCount = suffix.n ? parseInt(suffix.n.getText()) : 1;
 
+      let sorted;
+      let keepOperation;
+
       if (op === 'k' || op === 'adv') {
         // Keep highest
-        const sorted = [...rolls].sort((a, b) => b.total - a.total);
-        const kept = sorted.slice(0, keepCount);
-        const dropped = sorted.slice(keepCount);
-        const keptTotal = kept.reduce((sum, r) => sum + r.total, 0);
-
-        // Format: [kept dice]|[dropped dice values]
-        const keptDescription = this.formatRolls(kept);
-        const droppedValues = dropped.map(r => this.formatAcingRoll(r)).join(', ');
-
-        return new RollResult(
-          keptTotal,
-          droppedValues ? `${keptDescription}|${droppedValues}` : keptDescription,
-          kept
-        );
+        sorted = [...dice].sort((a, b) => b.total - a.total);
+        keepOperation = op === 'k' ? 'highest' : 'advantage';
       } else if (op === 'kl' || op === 'dis') {
         // Keep lowest
-        const sorted = [...rolls].sort((a, b) => a.total - b.total);
-        const kept = sorted.slice(0, keepCount);
-        const dropped = sorted.slice(keepCount);
-        const keptTotal = kept.reduce((sum, r) => sum + r.total, 0);
-
-        // Format: [kept dice]|[dropped dice values]
-        const keptDescription = this.formatRolls(kept);
-        const droppedValues = dropped.map(r => this.formatAcingRoll(r)).join(', ');
-
-        return new RollResult(
-          keptTotal,
-          droppedValues ? `${keptDescription}|${droppedValues}` : keptDescription,
-          kept
-        );
+        sorted = [...dice].sort((a, b) => a.total - b.total);
+        keepOperation = op === 'kl' ? 'lowest' : 'disadvantage';
       }
+
+      const keptDice = sorted.slice(0, keepCount).map(die => ({...die, kept: true}));
+      const droppedDice = sorted.slice(keepCount).map(die => ({...die, kept: false}));
+      const total = keptDice.reduce((sum, die) => sum + die.total, 0);
+
+      return new GenericRollResult(total, [...keptDice, ...droppedDice], null, droppedDice, keepOperation);
     }
 
     // Handle SuccessOrFailSuffix1 and SuccessOrFailSuffix2
@@ -470,25 +603,46 @@ export class R2EvaluatorVisitor extends R2Visitor {
       const successTarget = parseInt(suffix.sn.getText());
       const failTarget = suffix.fn ? parseInt(suffix.fn.getText()) : null;
 
-      const successes = rolls.filter(r => r.total >= successTarget).length;
-      const failures = failTarget ? rolls.filter(r => r.total <= failTarget).length : 0;
+      const successes = dice.filter(die => die.total >= successTarget).length;
+      const failures = failTarget ? dice.filter(die => die.total <= failTarget).length : 0;
 
-      let desc = `Successes (≥${successTarget}): ${successes}`;
-      if (failTarget) {
-        desc += `, Failures (≤${failTarget}): ${failures}`;
-      }
-
-      return new RollResult(successes, desc, { rolls, successes, failures });
+      return new SuccessFailRollResult(successes, dice, successes, failures, successTarget, failTarget);
     }
 
     // Handle TargetNumberAndRaiseStepSuffix
     if (suffix.constructor.name === 'TargetNumberAndRaiseStepSuffixContext') {
+      const total = dice.reduce((sum, die) => sum + die.total, 0);
       const tnCtx = suffix.targetNumberAndRaiseStep();
-      return this.applyTargetNumberSingle(total, tnCtx);
+
+      let targetNumber = tnCtx.tt ? parseInt(tnCtx.tt.getText()) : 4;
+      let raiseInterval = tnCtx.tr ? parseInt(tnCtx.tr.getText()) : 4;
+      if (tnCtx.tnr) {
+        targetNumber = parseInt(tnCtx.tnr.getText());
+        raiseInterval = targetNumber;
+      }
+      if (tnCtx.tgtn) targetNumber = parseInt(tnCtx.tgtn.getText());
+
+      const margin = total - targetNumber;
+      const success = margin >= 0;
+      const raiseCount = success ? Math.floor(margin / raiseInterval) : 0;
+
+      // For generic rolls with target numbers, we can extend GenericRollResult or create a wrapper
+      // For now, add raises info to the result
+      const result = new GenericRollResult(total, dice, null, []);
+      result.targetNumber = targetNumber;
+      result.raiseInterval = raiseInterval;
+      result.raises = {
+        success: success,
+        raises: raiseCount,
+        margin: margin,
+        description: success ? 'Success' : 'Failure'
+      };
+      return result;
     }
 
-    // Default: just return total
-    return new RollResult(total, this.formatRolls(rolls), rolls);
+    // Default: just return dice
+    const total = dice.reduce((sum, die) => sum + die.total, 0);
+    return new GenericRollResult(total, dice, null, []);
   }
 
   applyTargetNumber(results, tnCtx) {

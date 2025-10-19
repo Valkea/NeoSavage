@@ -485,3 +485,30 @@ export function createCombinedRollEmbed(results, overallTotal) {
   embed.addFields(...fields);
   return embed;
 }
+
+/**
+ * Create appropriate embed for a single roll result
+ */
+export function createEmbedForResult(rollResult) {
+
+  // Error
+  if (rollResult.error) {
+    return createErrorEmbed(rollResult.error);
+  }
+
+  // Wild
+  if (rollResult.isWildDie) {
+    return createWildDieEmbed(
+      rollResult.expression,
+      rollResult.result,
+      rollResult.targetNumber,
+      rollResult.raiseInterval
+    );
+  }
+
+  // Other / Regular
+  return createR2ResultEmbed(
+    rollResult.expression,
+    rollResult.result
+  );
+}

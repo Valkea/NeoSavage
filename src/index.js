@@ -26,22 +26,12 @@ const commands = [
   // Dice rolling commands
   new SlashCommandBuilder()
     .setName('roll')
-    .setDescription('Roll dice (e.g., 2d6+3, d20)')
+    .setDescription('Roll dice (e.g., 2d6+3, d20!, s8t6)')
     .addStringOption(option =>
       option
         .setName('dice')
-        .setDescription('Dice expression (e.g., 2d6, d20, 3d8+2)')
-        .setRequired(true))
-    .addBooleanOption(option =>
-      option
-        .setName('acing')
-        .setDescription('Enable acing/exploding dice')
-        .setRequired(false))
-    .addIntegerOption(option =>
-      option
-        .setName('modifier')
-        .setDescription('Additional modifier')
-        .setRequired(false)),
+        .setDescription('Dice expression (use ! for acing, +/- for modifiers)')
+        .setRequired(true)),
 
   new SlashCommandBuilder()
     .setName('wild')

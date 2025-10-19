@@ -55,112 +55,24 @@ export function calculateRaises(roll, targetNumber = 4, raiseInterval = 4) {
 }
 
 /**
- * Parse Savage Worlds dice expression (e.g., "s8", "2s6", "s10+2", "s8t6")
- * @param {string} expression - Savage Worlds dice expression
- * @returns {object} - Parsed parameters for SW roll
+ * Convert R2 Savage Worlds result to wildResult format
+ * @param {object} swR2Result - R2 evaluator result with trait/wild properties
+ * @returns {object} - {wildResult, targetNumber, raiseInterval}
  */
-export function parseSavageWorldsExpression(expression) {
-  // Remove spaces
-  expression = expression.toLowerCase().replace(/\s/g, '');
-
-  // Pattern: optional count, 's', die size, then modifier/target/raise in any order
-  const swMatch = expression.match(/^(\d*)s(\d+)((?:[+-]\d+|t\d+|r\d+)+)?$/i);
-
-  if (!swMatch) {
-    throw new Error(`Invalid Savage Worlds expression: ${expression}`);
-  }
-
-  const count = swMatch[1] ? parseInt(swMatch[1]) : 1;
-  const traitDie = parseInt(swMatch[2]);
-  const suffixes = swMatch[3] || '';
-
-  // Extract modifier, target number, and raise interval from suffixes (can be in any order)
-  const modMatch = suffixes.match(/([+-]\d+)/);
-  const tnMatch = suffixes.match(/t(\d+)/i);
-  const raiseMatch = suffixes.match(/r(\d+)/i);
-
-  const modifier = modMatch ? parseInt(modMatch[1]) : 0;
-  const targetNumber = tnMatch ? parseInt(tnMatch[1]) : 4; // Default TN=4
-  const raiseInterval = raiseMatch ? parseInt(raiseMatch[1]) : 4; // Default raise=4
-
-  return {
-    count,
-    traitDie,
-    modifier,
-    targetNumber,
-    raiseInterval
+export function createWildResultFromR2(swR2Result) {
+  const wildResult = {
+    total: swR2Result.result,
+    traitRoll: swR2Result.trait,
+    wildRoll: swR2Result.wild,
+    usedDie: swR2Result.usedDie,
+    modifier: 0
   };
-}
 
-/**
- * Roll Savage Worlds extras (single exploding die, no wild die)
- * @param {number} dieSides - Size of the die
- * @param {number} modifier - Modifier to add
- * @returns {object} - Roll result for extras
- */
-export function rollSavageWorldsExtra(dieSides, modifier = 0) {
-  const roll = rollAcingDie(dieSides);
-  return {
-    total: roll.total + modifier,
-    roll: roll,
-    modifier
-  };
-}
-
-/**
- * Check if expression is a Savage Worlds expression
- * @param {string} expression - The dice expression
- * @returns {boolean} - True if it's a Savage Worlds expression
- */
-export function isSavageWorldsExpression(expression) {
-  return /^(\d*)s(\d+)((?:[+-]\d+|t\d+|r\d+)+)?$/i.test(expression);
-}
-
-/**
- * Handle Savage Worlds expression for Discord commands
- * @param {string} expression - The dice expression
- * @param {number} modifier - Additional modifier from command
- * @returns {object|null} - Savage Worlds result or null if not SW expression
- */
-export function handleSavageWorldsExpression(expression, modifier = 0) {
-  if (!isSavageWorldsExpression(expression)) {
-    return null; // Not a Savage Worlds expression
+  const targetNumber = swR2Result.success !== undefined ? 4 : null;
+  const raiseInterval = 4;
+  if (targetNumber) {
+    wildResult.raises = calculateRaises(wildResult.total, targetNumber, raiseInterval);
   }
 
-  try {
-    // Use existing parser to get the parsed data
-    const parsed = parseSavageWorldsExpression(expression);
-    const totalModifier = modifier + parsed.modifier;
-
-    // For single roll, return wild die result
-    if (parsed.count === 1) {
-      const result = rollWithWildDie(parsed.traitDie, totalModifier);
-      result.raises = calculateRaises(result.total, parsed.targetNumber, parsed.raiseInterval);
-
-      const displayExpr = `s${parsed.traitDie}${totalModifier !== 0 ? (totalModifier > 0 ? '+' : '') + totalModifier : ''}${parsed.targetNumber !== 4 ? `t${parsed.targetNumber}` : ''}${parsed.raiseInterval !== 4 ? `r${parsed.raiseInterval}` : ''}`;
-      
-      return {
-        isWildDie: true,
-        isSingle: true,
-        result,
-        displayExpr,
-        targetNumber: parsed.targetNumber,
-        raiseInterval: parsed.raiseInterval
-      };
-    }
-
-    // For multiple rolls, return info to use with R2 evaluator
-    return {
-      isWildDie: true,
-      isSingle: false,
-      count: parsed.count,
-      traitDie: parsed.traitDie,
-      totalModifier,
-      targetNumber: parsed.targetNumber,
-      raiseInterval: parsed.raiseInterval,
-      originalExpression: expression
-    };
-  } catch (error) {
-    return null; // Invalid SW expression
-  }
+  return { wildResult, targetNumber, raiseInterval };
 }

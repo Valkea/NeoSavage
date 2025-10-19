@@ -126,12 +126,6 @@ The bot includes full support for the R2 dice expression grammar with automatic 
 - `eX` - Extras roll (single acing die)
 - `4e6` - Multiple extras rolls
 
-**Other Systems**
-- `XdF` - Fudge/FATE dice
-- `XdC` - Carcosa dice
-- `XW` - West End Games D6 (with wild die)
-- `pX` - Sword World power roll
-
 **Advanced Features**
 - `Expression[min:max]` - Bound result
 - `NxExpression` - Batch roll (e.g., `5x2d6`, `3xs8t4`)

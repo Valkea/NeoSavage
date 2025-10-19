@@ -5,30 +5,19 @@ A Discord bot for **Savage Worlds** tabletop RPG mechanics, written in JavaScrip
 ## Features
 
 ### 🎲 Dice Rolling
-- **Basic Rolls**: `/roll 2d6+3`, `/roll d20`, `/roll 3d8-2`
-- **Acing Dice**: Exploding dice (reroll and add on max value)
+- **Basic Rolls**: `/roll dice:2d6+3`, `/roll dice:d20`, `/roll dice:3d8-2`
+- **Acing Dice**: Exploding dice (reroll and add on max value) - use `!` modifier
 - **Wild Die Rolls**: Savage Worlds signature mechanic - roll trait die + wild die, keep highest
 - **Automatic Raises**: Calculate success and raises based on target number
-- **Multi-Group Rolls**: `/roll dice:3d6 / s8 / 2d20adv` - Multiple dice groups with overall total
-- **Split Mode**: Add `/split` or `/s` to get separate messages per group
+- **Keep/Drop**: Keep highest/lowest dice, advantage/disadvantage (`k`, `kl`, `adv`, `dis`)
+- **Target Numbers & Raises**: Specify target numbers and raise intervals (`t4`, `r4`)
 - **✨ Flexible Modifiers**: Write modifiers in ANY order! `s10+5r2t5`, `3d6!+5k2`, `3d6+2kl2` all work
 
 ### ⚔️ Combat & Initiative
 - **Card-Based Initiative**: Deal playing cards for initiative order (Savage Worlds style)
 - **Edge Support**: Quick, Level Headed, Improved Level Headed edges
-- **Round Management**: Track rounds and automatically deal new cards
-- **On Hold**: Put characters on hold during combat
-
-### 🎲 Benny Management
-- **Grant Bennies**: Give bennies to characters
-- **Spend Bennies**: Track benny usage
-- **List View**: See all characters and their benny counts
-- **Mode Support**: Standard and Deadlands modes
-
-### 🎯 Character States
-- **State Tracking**: Shaken, Stunned, Vulnerable, Distracted, etc.
-- **Add/Remove**: Manage character conditions
-- **Visual Display**: Emoji-based state display
+- **Round Management**: Track rounds with `/initiative round`
+- **Fight Management**: Start and end combat encounters with `/fight start` and `/fight end`
 
 ## Installation
 
@@ -98,29 +87,22 @@ docker-compose down
 ## Commands
 
 ### Dice Rolling
-- `/roll dice:[expression] acing:[true/false] modifier:[number]` - Roll dice
-- `/wild trait:[d4-d12] modifier:[number] target:[number]` - Wild die roll
+- `/roll dice:[expression]` - Roll dice with flexible expression syntax
+  - Examples: `2d6+3`, `d20!`, `s8t4`, `4d6k3`, `2d20adv`
+- `/wild trait:[d4-d12] modifier:[number] target:[number] raise:[number]` - Savage Worlds wild die roll
 
 ### Combat
 - `/fight start` - Start a new fight
 - `/fight end` - End the current fight
 
 ### Initiative
-- `/initiative deal characters:[names] quick:[true/false] level_headed:[true/false]` - Deal cards
+- `/initiative deal characters:[names]` - Deal initiative cards
+  - Options: `quick:[true/false]`, `level_headed:[true/false]`, `improved_level_headed:[true/false]`
 - `/initiative show` - Show initiative order
 - `/initiative round` - Start new round
 
-### Bennies
-- `/benny grant character:[name] count:[number]` - Grant bennies
-- `/benny spend character:[name]` - Spend a benny
-- `/benny list` - List all bennies
-- `/benny clear character:[name]` - Clear bennies
-
-### Character States
-- `/state character:[name] action:[add/remove/clear/show] state:[state_name]` - Manage states
-
 ### Help
-- `/help` - Show command help
+- `/help` - Show dice rolling guide and examples
 
 ## Advanced Dice Rolling (R2 Grammar)
 
@@ -158,71 +140,62 @@ The bot includes full support for the R2 dice expression grammar with automatic 
 - Arithmetic: `+`, `-`, `*`, `/`, `%`
 - `--flag` - Flags for special behaviors
 
-**Multi-Group Rolls**
-- `Group1 / Group2 / Group3` - Combined roll (single message with total)
-- `Group1 / Group2 / Group3 /split` - Separate messages per group
-- `Group1 / Group2 /s` - Split mode (short flag)
-- Mixed types supported: `3d6 / s8 / 2d20adv` - Regular + Savage Worlds + Advantage
+**Repeat Expressions**
+- `NxExpression` - Batch roll (e.g., `5x2d6`, `3xs8t4`)
 
 ## Examples
 
 ### Basic Dice Roll
 ```
 /roll dice:2d6+3
-> 🎲 Roll: 2d6+3
+> 🎲 2d6+3
 > Result: 11
-> Breakdown: 4 + 4 + 3
+> Details: [4, 4] +3
 ```
 
 ### Acing Dice
 ```
-/roll dice:d6 acing:true
-> 🎲 Roll: d6
+/roll dice:d6!
+> 🎲 d6!
 > Result: 14
-> Breakdown: [6+6+2]
+> Details: [6! +6! +2]
 ```
 
-### Wild Die Roll
+### Savage Worlds Roll (using /roll)
+```
+/roll dice:s8t4
+> 🎲 Savage Worlds: s8
+> Trait Die: [6]
+> Wild Die: [3]
+> Result: 6 (used trait die)
+> ✅ Success! (TN: 4)
+```
+
+### Wild Die Roll (using /wild)
 ```
 /wild trait:8 modifier:2 target:4
-> 🎲 Wild Die Roll: d8
-> Trait Die: [8+3] = 11
-> Wild Die: 4 = 4
+> 🎲 Wild Die Roll: d8+2
+> Trait Die: [8! +3] = 11
+> Wild Die: [4] = 4
 > Final Result: 13 (used trait die)
-> Success with 2 raises (TN: 4)
+> ✅ Success with 2 raises! (TN: 4)
 ```
 
-### Multi-Group Rolls (Combined)
+### Keep Highest (D&D Advantage)
 ```
-/roll dice:3d6 / s8 / 2d20adv
-> 🎲 Multiple Roll Groups
-> Group 1: 3d6
-> Result: 12 ← [ 4, 3, 5 ]
-> 
-> Group 2: s8  
-> Trait Die: 6 ← [ 6 ]
-> Wild Die: 3 ← [ 3 ]
-> Result: 6 • used trait die
->
-> Group 3: 2d20adv
-> Result: 17 ← [ 17, 8 ]
->
-> Overall Total: 35
-```
-
-### Multi-Group Rolls (Split)
-```
-/roll dice:3d6 / s8 / 2d20adv /split
-> [Three separate messages, one for each group]
+/roll dice:2d20adv
+> 🎲 2d20 advantage
+> Result: 17
+> Details: [17, 8] → kept highest
 ```
 
 ### Initiative
 ```
 /initiative deal characters:Grog, Valeria, Zephyr
 > 🎴 Initiative Cards Dealt:
-> Grog: K of ♠️ Spades
-> Valeria: 7 of ♥️ Hearts
-> Zephyr: 🃏 Red Joker
+> Grog: K♠
+> Valeria: 7♥
+> Zephyr: 🃏 Joker (Red)
 ```
 
 ## Discord Bot Setup
